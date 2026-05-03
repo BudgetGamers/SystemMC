@@ -447,26 +447,33 @@ os.pullEvent("key")
     ["scripts/apps/settings.lua"] = [[
 local root = ...
 local settingsPath = fs.combine(root, "settings.cfg")
-local pocketMode = false
+local selected, scroll = 1, 0
+local options = {
+    { name = "Pocket Mode", key = "pocketMode", value = false }
+}
 
 local function load()
     if fs.exists(settingsPath) then
         local f = fs.open(settingsPath, "r")
         local content = f.readAll()
         f.close()
-        pocketMode = content:match("pocketMode%s*=%s*true") and true or false
+        for _, opt in ipairs(options) do
+            opt.value = content:match(opt.key .. "%s*=%s*true") and true or false
+        end
     end
 end
 
 local function save()
     local f = fs.open(settingsPath, "w")
-    f.write("pocketMode = " .. tostring(pocketMode))
+    for _, opt in ipairs(options) do
+        f.write(opt.key .. " = " .. tostring(opt.value) .. "\n")
+    end
     f.close()
 end
 
-load()
-
-while true do
+local function draw()
+    local w, h = term.getSize()
+    local maxVisible = h - 3
     term.setBackgroundColor(colors.gray)
     term.setTextColor(colors.white)
     term.clear()
@@ -474,19 +481,44 @@ while true do
     term.setBackgroundColor(colors.blue)
     term.clearLine()
     print(" Settings")
-    term.setBackgroundColor(colors.gray)
-    print(string.rep("-", 20))
     
-    term.setCursorPos(2, 4)
-    term.write("Pocket Mode: " .. (pocketMode and "[ ENABLED ]" or "[ DISABLED ]"))
+    if selected > scroll + maxVisible then scroll = selected - maxVisible
+    elseif selected <= scroll then scroll = selected - 1 end
+
+    for i = 1, maxVisible do
+        local idx = i + scroll
+        if options[idx] then
+            local opt = options[idx]
+            term.setCursorPos(1, 1 + i)
+            if idx == selected then
+                term.setBackgroundColor(colors.lightBlue)
+                term.setTextColor(colors.white)
+            else
+                term.setBackgroundColor(colors.gray)
+                term.setTextColor(colors.white)
+            end
+            local valStr = opt.value and "[ ENABLED ]" or "[ DISABLED ]"
+            local padding = w - #opt.name - #valStr - 3
+            term.write(" " .. opt.name .. string.rep(" ", padding) .. valStr .. " ")
+        end
+    end
     
-    term.setCursorPos(2, 12)
-    term.write("Press [T] to Toggle, [Q] to Save & Quit")
-    
-    local _, char = os.pullEvent("char")
-    if char == "t" then
-        pocketMode = not pocketMode
-    elseif char == "q" then
+    term.setCursorPos(1, h)
+    term.setBackgroundColor(colors.blue)
+    term.setTextColor(colors.white)
+    term.clearLine()
+    term.write(" Enter:Toggle  Q:Save & Quit")
+end
+
+load()
+while true do
+    draw()
+    local _, k = os.pullEvent("key")
+    if k == keys.up then selected = selected > 1 and selected - 1 or #options
+    elseif k == keys.down then selected = selected < #options and selected + 1 or 1
+    elseif k == keys.enter then
+        options[selected].value = not options[selected].value
+    elseif k == keys.q then
         save()
         break
     end
