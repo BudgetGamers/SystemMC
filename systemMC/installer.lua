@@ -104,7 +104,7 @@ local function menuBar(w, isMenuOpen, pocketMode)
 end
 
 local function drawStartMenu(x, y, selected)
-    local apps = {"1. Explorer  ", "2. Settings  ", "3. Disk Usage", "4. Compressor", "5. About      ", "6. Shutdown   "}
+    local apps = {"1. Explorer  ", "2. Settings  ", "3. Disk Usage", "4. About      ", "5. Shutdown   "}
     for i, app in ipairs(apps) do
         term.setCursorPos(x, y + i)
         if i == selected then
@@ -233,10 +233,10 @@ while running do
         end
     else
         if key == keys.up then
-            selectedApp = selectedApp > 1 and selectedApp - 1 or 6
+            selectedApp = selectedApp > 1 and selectedApp - 1 or 5
             drawDesktop()
         elseif key == keys.down then
-            selectedApp = selectedApp < 6 and selectedApp + 1 or 1
+            selectedApp = selectedApp < 5 and selectedApp + 1 or 1
             drawDesktop()
         elseif key == keys.enter then
             if selectedApp == 1 then
@@ -246,10 +246,8 @@ while running do
             elseif selectedApp == 3 then
                 openApp("Usage", fs.combine(root, "scripts/apps/disk_usage.lua"))
             elseif selectedApp == 4 then
-                openApp("Compress", fs.combine(root, "scripts/apps/compressor.lua"))
-            elseif selectedApp == 5 then
                 openApp("About", fs.combine(root, "scripts/apps/help.lua"))
-            elseif selectedApp == 6 then
+            elseif selectedApp == 5 then
                 term.setBackgroundColor(colors.black)
                 term.clear()
                 term.setCursorPos(1, 1)
@@ -269,13 +267,47 @@ end
     ["scripts/apps/explorer.lua"] = [[
 local root = ...
 local currentPath = root
-local selected = 1
-local scroll = 0
+local selected, scroll = 1, 0
+local moveSrc = nil
+
+local function pack(dir, output)
+    local files = {}
+    local function scan(p)
+        for _, item in ipairs(fs.list(p)) do
+            local full = fs.combine(p, item)
+            if fs.isDir(full) then scan(full)
+            else
+                local f = fs.open(full, "r")
+                files[full:sub(#dir + 2)] = f.readAll()
+                f.close()
+            end
+        end
+    end
+    scan(dir)
+    local f = fs.open(output, "w")
+    f.write(textutils.serialize(files))
+    f.close()
+end
+
+local function unpack(file, dir)
+    local f = fs.open(file, "r")
+    local data = f.readAll()
+    f.close()
+    local files = textutils.unserialize(data)
+    if not files then return end
+    for path, content in pairs(files) do
+        local full = fs.combine(dir, path)
+        local d = fs.getDir(full)
+        if not fs.exists(d) then fs.makeDir(d) end
+        local out = fs.open(full, "w")
+        out.write(content)
+        out.close()
+    end
+end
 
 local function draw(list)
     local w, h = term.getSize()
-    local maxVisible = h - 2
-    
+    local maxVisible = h - 3
     term.setBackgroundColor(colors.gray)
     term.setTextColor(colors.white)
     term.clear()
@@ -284,84 +316,82 @@ local function draw(list)
     term.clearLine()
     print(" Explorer: " .. currentPath)
     term.setBackgroundColor(colors.gray)
-    print(string.rep("-", w))
-
-    -- Scroll logic
-    if selected > scroll + maxVisible then
-        scroll = selected - maxVisible
-    elseif selected <= scroll then
-        scroll = selected - 1
-    end
+    
+    if selected > scroll + maxVisible then scroll = selected - maxVisible
+    elseif selected <= scroll then scroll = selected - 1 end
 
     for i = 1, maxVisible do
         local idx = i + scroll
         if list[idx] then
-            term.setCursorPos(1, 2 + i)
+            term.setCursorPos(1, 1 + i)
+            local item = list[idx]
+            local full = fs.combine(currentPath, item)
+            local isDir = item == ".." or fs.isDir(full)
+            
             if idx == selected then
                 term.setBackgroundColor(colors.lightBlue)
+                term.setTextColor(colors.white)
+            elseif moveSrc == full then
+                term.setBackgroundColor(colors.red)
                 term.setTextColor(colors.white)
             else
                 term.setBackgroundColor(colors.gray)
                 term.setTextColor(colors.white)
             end
             
-            local item = list[idx]
-            local isDir = item == ".." or fs.isDir(fs.combine(currentPath, item))
             local prefix = isDir and "[DIR] " or "      "
             term.write(" " .. prefix .. item .. string.rep(" ", w - #item - 7))
         end
     end
+    term.setCursorPos(1, h)
+    term.setBackgroundColor(colors.blue)
+    term.setTextColor(colors.white)
+    term.clearLine()
+    term.write(" E:Edit R:Run C:Pack U:Unpack M:Move K:Drop")
 end
 
 while true do
     local list = fs.list(currentPath)
-    if currentPath ~= root and currentPath ~= "/" then
-        table.insert(list, 1, "..")
-    end
-    
+    if currentPath ~= root and currentPath ~= "/" then table.insert(list, 1, "..") end
     draw(list)
     local e, k = os.pullEvent("key")
-    if k == keys.up then
-        selected = selected > 1 and selected - 1 or #list
-    elseif k == keys.down then
-        selected = selected < #list and selected + 1 or 1
+    local item = list[selected]
+    local fullPath = fs.combine(currentPath, item)
+    if k == keys.up then selected = selected > 1 and selected - 1 or #list
+    elseif k == keys.down then selected = selected < #list and selected + 1 or 1
     elseif k == keys.enter then
-        local item = list[selected]
-        local fullPath = fs.combine(currentPath, item)
-        
         if item == ".." then
             currentPath = fs.getDir(currentPath)
-            selected = 1
-            scroll = 0
+            selected, scroll = 1, 0
         elseif fs.isDir(fullPath) then
             currentPath = fullPath
-            selected = 1
-            scroll = 0
-        else
-            -- It's a file
-            term.setCursorPos(1, term.getSize())
-            term.setBackgroundColor(colors.blue)
-            term.clearLine()
-            if item:match("%.lua$") then
-                term.write(" [R] Run  [E] Edit  [Any] Cancel")
-                local _, choice = os.pullEvent("char")
-                if choice == "r" then
-                    term.setBackgroundColor(colors.black)
-                    term.clear()
-                    term.setCursorPos(1,1)
-                    shell.run(fullPath)
-                    print("\nPress any key to return...")
-                    os.pullEvent("key")
-                elseif choice == "e" then
-                    shell.run("edit", fullPath)
-                end
-            else
-                shell.run("edit", fullPath)
-            end
+            selected, scroll = 1, 0
         end
-    elseif k == keys.q then
-        break
-    end
+    elseif k == keys.e and not fs.isDir(fullPath) then
+        shell.run("edit", fullPath)
+    elseif k == keys.r and not fs.isDir(fullPath) and item:match("%.lua$") then
+        term.setBackgroundColor(colors.black)
+        term.clear()
+        term.setCursorPos(1,1)
+        shell.run(fullPath)
+        print("\nPress any key...")
+        os.pullEvent("key")
+    elseif k == keys.c and fs.isDir(fullPath) and item ~= ".." then
+        term.setCursorPos(1, term.getSize())
+        term.write("Pack name: ")
+        local out = read()
+        if out ~= "" then pack(fullPath, fs.combine(currentPath, out .. ".tar")) end
+    elseif k == keys.u and not fs.isDir(fullPath) and item:match("%.tar$") then
+        term.setCursorPos(1, term.getSize())
+        term.write("Folder name: ")
+        local out = read()
+        if out ~= "" then unpack(fullPath, fs.combine(currentPath, out)) end
+    elseif k == keys.m and item ~= ".." then
+        moveSrc = fullPath
+    elseif k == keys.k and moveSrc then
+        fs.move(moveSrc, fs.combine(currentPath, fs.getName(moveSrc)))
+        moveSrc = nil
+    elseif k == keys.q then break end
 end
 ]],
 
@@ -379,12 +409,15 @@ print("A TempleOS-inspired TUI.")
 print("\nHotkeys:")
 print(" Left/Right - Navigate")
 print(" Enter - Open Start Menu")
-print(" Ctrl+Q - to close active application")
-print(" File Explorer hotkeys:")
-print(" Enter - Open File/Folder")
-print(" Up/Down - Navigate")
-print(" Enter followed by R - to Run File")
-print(" Enter followed by E - Edit File")
+print(" Ctrl+Q - Close App")
+print(" Explorer Hotkeys:")
+print(" Enter - Enter Folder / ..")
+print(" E - Edit File")
+print(" R - Run .lua File")
+print(" C - Pack Folder to .tar")
+print(" U - Unpack .tar File")
+print(" M - Mark for Move")
+print(" K - Drop Item Here")
 print("\nPress any key to close.")
 os.pullEvent("key")
 ]],
@@ -534,94 +567,6 @@ while true do
 end
 ]],
 
-    -- Compressor App
-    ["scripts/apps/compressor.lua"] = [[
-local root = ...
-local function drawHeader()
-    term.setBackgroundColor(colors.gray)
-    term.setTextColor(colors.white)
-    term.clear()
-    term.setCursorPos(1, 1)
-    term.setBackgroundColor(colors.blue)
-    term.clearLine()
-    term.write(" SystemMC Archiver")
-end
-
-local function pack(dir, output)
-    local files = {}
-    local function scan(p)
-        local list = fs.list(p)
-        for _, item in ipairs(list) do
-            local full = fs.combine(p, item)
-            if fs.isDir(full) then
-                scan(full)
-            else
-                local f = fs.open(full, "r")
-                files[full:sub(#dir + 2)] = f.readAll()
-                f.close()
-            end
-        end
-    end
-    scan(dir)
-    local f = fs.open(output, "w")
-    f.write(textutils.serialize(files))
-    f.close()
-end
-
-local function unpack(file, dir)
-    local f = fs.open(file, "r")
-    local data = f.readAll()
-    f.close()
-    local files = textutils.unserialize(data)
-    if not files then return end
-    for path, content in pairs(files) do
-        local full = fs.combine(dir, path)
-        local d = fs.getDir(full)
-        if not fs.exists(d) then fs.makeDir(d) end
-        local out = fs.open(full, "w")
-        out.write(content)
-        out.close()
-    end
-end
-
-while true do
-    drawHeader()
-    term.setBackgroundColor(colors.gray)
-    term.setCursorPos(2, 3)
-    print("1. Pack (Folder -> .tar)")
-    print(" 2. Unpack (.tar -> Folder)")
-    print(" Q. Quit")
-    
-    local _, k = os.pullEvent("key")
-    if k == keys.one then
-        term.setCursorPos(2, 7)
-        term.write("Source: ")
-        local src = read()
-        term.setCursorPos(2, 8)
-        term.write("Output: ")
-        local out = read()
-        if fs.isDir(src) then
-            pack(src, out)
-            print(" Success!")
-            sleep(1)
-        end
-    elseif k == keys.two then
-        term.setCursorPos(2, 7)
-        term.write("Archive: ")
-        local src = read()
-        term.setCursorPos(2, 8)
-        term.write("Dest: ")
-        local dst = read()
-        if fs.exists(src) then
-            unpack(src, dst)
-            print(" Success!")
-            sleep(1)
-        end
-    elseif k == keys.q then
-        break
-    end
-end
-]],
 
     -- Placeholder folders
     ["settings.cfg"] = "pocketMode = false",
