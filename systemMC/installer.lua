@@ -32,7 +32,7 @@ log("Root detected: " .. root)
 
 local systemPaths = {
     "libs/rom", "libs/local", "scripts/systemMC", 
-    "scripts/apps", "scripts/games", "scripts/etc"
+    "scripts/apps", "user/apps", "user/games", "scripts/etc"
 }
 
 local newPaths = {}
@@ -210,7 +210,30 @@ local function loadSettings()
     end
 end
 
+local function scanUserApps()
+    local userApps = {}
+    local paths = { "user/apps", "user/games" }
+    for _, p in ipairs(paths) do
+        local full = fs.combine(root, p)
+        if fs.exists(full) and fs.isDir(full) then
+            for _, file in ipairs(fs.list(full)) do
+                local fPath = fs.combine(full, file)
+                if not fs.isDir(fPath) and file:match("%.lua$") then
+                    table.insert(userApps, { 
+                        name = file:gsub("%.lua$", ""), 
+                        app = file:gsub("%.lua$", ""), 
+                        path = fs.combine(p, file) 
+                    })
+                end
+            end
+        end
+    end
+    if #userApps == 0 then table.insert(userApps, { name = "Empty", action = "none" }) end
+    startMenu[3].items = userApps
+end
+
 local function drawDesktop()
+    scanUserApps()
     loadSettings()
     term.setBackgroundColor(colors.black)
     term.setTextColor(colors.blue)
@@ -763,13 +786,32 @@ local groups = {
     }}
 }
 
+local function wrapText(text, width)
+    local lines = {}
+    local current = ""
+    for word in text:gmatch("%S+") do
+        if #current + #word + 1 <= width then
+            current = (current == "") and word or current .. " " .. word
+        else
+            table.insert(lines, current)
+            current = word
+        end
+    end
+    table.insert(lines, current)
+    return lines
+end
+
 local function getFlattened()
+    local w, h = term.getSize()
     local flat = {}
     for i, g in ipairs(groups) do
         table.insert(flat, { type = "group", data = g })
         if g.expanded then
             for _, item in ipairs(g.items) do
-                table.insert(flat, { type = "item", data = item })
+                local wrapped = wrapText(item, w - 8)
+                for _, line in ipairs(wrapped) do
+                    table.insert(flat, { type = "item", data = line })
+                end
             end
         end
     end
@@ -1085,8 +1127,8 @@ end
     -- Placeholder folders
     ["settings.cfg"] = "pocketMode = false",
     ["libs/local/.keep"] = "",
-    ["scripts/games/.keep"] = "",
-    ["scripts/apps/.keep"] = "",
+    ["user/apps/.keep"] = "",
+    ["user/games/.keep"] = "",
     ["scripts/etc/.keep"] = "",
 }
 
