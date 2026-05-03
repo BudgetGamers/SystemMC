@@ -164,9 +164,14 @@ local root = ...
 
 -- Ensure package.path includes our libs even if run directly
 if root then
-    local libPath = fs.combine(root, "libs/rom")
-    if not libPath:match("^/") then libPath = "/" .. libPath end
-    package.path = libPath .. "/?.lua;" .. libPath .. "/?/init.lua;" .. package.path
+    local paths = { "libs/rom", "libs/local", "scripts/systemMC" }
+    local pStr = ""
+    for _, p in ipairs(paths) do
+        local full = fs.combine(root, p)
+        if not full:match("^/") then full = "/" .. full end
+        pStr = pStr .. full .. "/?.lua;" .. full .. "/?/init.lua;"
+    end
+    package.path = pStr .. package.path
 end
 
 local logger = require("logger")
