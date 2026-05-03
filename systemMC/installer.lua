@@ -32,7 +32,7 @@ log("Root detected: " .. root)
 
 local systemPaths = {
     "libs/rom", "libs/local", "scripts/systemMC", 
-    "scripts/apps", "user/apps", "user/games", "scripts/etc"
+    "scripts/apps", "user/apps", "user/games", "user/downloads", "scripts/etc"
 }
 
 local newPaths = {}
@@ -720,6 +720,9 @@ local function getFilename(url)
     return url:match("^.*/([^/?]+)") or "downloaded_file"
 end
 
+local dlDir = fs.combine(root, "user/downloads")
+if not fs.exists(dlDir) then fs.makeDir(dlDir) end
+
 while true do
     term.setBackgroundColor(colors.gray)
     term.clear()
@@ -729,10 +732,11 @@ while true do
         if url ~= "" then
             local name = drawInputPopup("Name (Optional):")
             if name == "" then name = getFilename(url) end
+            local target = fs.combine(dlDir, name)
             term.setBackgroundColor(colors.black)
             term.clear()
             term.setCursorPos(1,1)
-            shell.run("wget", url, name)
+            shell.run("wget", url, target)
             print("\nPress any key...")
             os.pullEvent("key")
         end
@@ -741,10 +745,11 @@ while true do
         if code ~= "" then
             local name = drawInputPopup("Enter Filename:")
             if name ~= "" then
+                local target = fs.combine(dlDir, name)
                 term.setBackgroundColor(colors.black)
                 term.clear()
                 term.setCursorPos(1,1)
-                shell.run("pastebin", "get", code, name)
+                shell.run("pastebin", "get", code, target)
                 print("\nPress any key...")
                 os.pullEvent("key")
             end
@@ -1129,6 +1134,7 @@ end
     ["libs/local/.keep"] = "",
     ["user/apps/.keep"] = "",
     ["user/games/.keep"] = "",
+    ["user/downloads/.keep"] = "",
     ["scripts/etc/.keep"] = "",
 }
 
