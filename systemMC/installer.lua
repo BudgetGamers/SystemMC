@@ -1,7 +1,7 @@
 -- [[ SystemMC OS Installer v1.0 ]]
 -- Author: Apollo
 -- A premium TUI installer for ComputerCraft Floppy Disks.
-local _VERSION = "0.1.13-b"
+local _VERSION = "0.1.14-b"
 
 local files = {
     -- Root Bootloader
@@ -888,32 +888,52 @@ end
 
     -- Settings App
     ["scripts/apps/settings.lua"] = [[
+local _VERSION = "{{VERSION}}"
 local root = ...
-local settingsPath = fs.combine(root, "settings.cfg")
-local selected, scroll = 1, 0
-local options = {
-    { name = "Pocket Mode", key = "pocketMode", type = "toggle", value = false },
-    { name = "Check Update", key = "update", type = "action", value = "Press Enter" }
+local selected = 1
+local currentTab = 1
+local scroll = 0
+
+local tabs = {
+    { name = "General", options = {
+        { name = "Pocket Mode", key = "pocketMode", type = "toggle", value = false }
+    }},
+    { name = "Updates", options = {
+        { name = "Check Update", key = "update", type = "action", value = "Press Enter" }
+    }},
+    { name = "Notifications(WIP)", options = {} },
+    { name = "Colors(WIP)", options = {} },
+    { name = "Dev tools(WIP)", options = {} }
 }
 
-local function load()
-    if fs.exists(settingsPath) then
-        local f = fs.open(settingsPath, "r")
+local settings = { pocketMode = false }
+
+local function loadSettings()
+    local path = fs.combine(root, "settings.cfg")
+    if fs.exists(path) then
+        local f = fs.open(path, "r")
         local content = f.readAll()
         f.close()
-        for _, opt in ipairs(options) do
-            if opt.type == "toggle" then
-                opt.value = content:match(opt.key .. "%s*=%s*true") and true or false
-            end
+        for k, v in content:gmatch("([%w_]+)%s*=%s*([%w_]+)") do
+            settings[k] = (v == "true")
+        end
+    end
+    -- Sync settings to tabs
+    for _, tab in ipairs(tabs) do
+        for _, opt in ipairs(tab.options) do
+            if settings[opt.key] ~= nil then opt.value = settings[opt.key] end
         end
     end
 end
 
-local function save()
-    local f = fs.open(settingsPath, "w")
-    for _, opt in ipairs(options) do
-        if opt.type == "toggle" then
-            f.write(opt.key .. " = " .. tostring(opt.value) .. "\n")
+local function saveSettings()
+    local path = fs.combine(root, "settings.cfg")
+    local f = fs.open(path, "w")
+    for _, tab in ipairs(tabs) do
+        for _, opt in ipairs(tab.options) do
+            if opt.type == "toggle" then
+                f.writeLine(opt.key .. " = " .. tostring(opt.value))
+            end
         end
     end
     f.close()
@@ -921,116 +941,134 @@ end
 
 local function draw()
     local w, h = term.getSize()
-    local maxVisible = h - 3
     term.setBackgroundColor(colors.gray)
-    term.setTextColor(colors.white)
     term.clear()
+    
+    -- Header
     term.setCursorPos(1,1)
     term.setBackgroundColor(colors.blue)
+    term.setTextColor(colors.white)
     term.clearLine()
-    print(" Settings")
+    term.write(" Settings Manager")
     
-    if selected > scroll + maxVisible then scroll = selected - maxVisible
-    elseif selected <= scroll then scroll = selected - 1 end
-
-    for i = 1, maxVisible do
-        local idx = i + scroll
-        if options[idx] then
-            local opt = options[idx]
-            term.setCursorPos(1, 1 + i)
-            if idx == selected then
+    -- Tabs
+    term.setCursorPos(1, 2)
+    term.setBackgroundColor(colors.lightGray)
+    term.setTextColor(colors.black)
+    term.clearLine()
+    local tx = 1
+    for i, t in ipairs(tabs) do
+        if i == currentTab then
+            term.setBackgroundColor(colors.blue)
+            term.setTextColor(colors.white)
+        else
+            term.setBackgroundColor(colors.lightGray)
+            term.setTextColor(colors.black)
+        end
+        term.write(" " .. t.name .. " ")
+    end
+    
+    -- Options
+    local options = tabs[currentTab].options
+    if #options == 0 then
+        term.setCursorPos(w/2 - 4, h/2)
+        term.setBackgroundColor(colors.gray)
+        term.setTextColor(colors.lightGray)
+        term.write("(WIP)")
+    else
+        for i, opt in ipairs(options) do
+            local y = i + 3
+            term.setCursorPos(2, y)
+            if i == selected then
                 term.setBackgroundColor(colors.lightBlue)
                 term.setTextColor(colors.white)
             else
                 term.setBackgroundColor(colors.gray)
                 term.setTextColor(colors.white)
             end
+            
             local valStr = ""
             if opt.type == "toggle" then
-                valStr = opt.value and "[ ENABLED ]" or "[ DISABLED ]"
+                valStr = opt.value and "[ ON ]" or "[ OFF ]"
             else
-                valStr = "[ " .. tostring(opt.value) .. " ]"
+                valStr = tostring(opt.value)
             end
-            local padding = w - #opt.name - #valStr - 3
-            term.write(" " .. opt.name .. string.rep(" ", padding) .. valStr .. " ")
+            
+            local label = opt.name
+            local padding = w - #label - #valStr - 4
+            term.write(" " .. label .. string.rep(" ", padding) .. valStr .. " ")
         end
     end
     
+    -- Footer
     term.setCursorPos(1, h)
     term.setBackgroundColor(colors.blue)
     term.setTextColor(colors.white)
     term.clearLine()
-    term.write(" Enter:Action  Q:Save & Quit")
+    term.write(" Arrows:Nav Enter:Act Q:Quit")
 end
 
-local function checkUpdate()
-    local opt = options[2]
-    opt.value = "Checking..."
-    draw()
-    if not http then opt.value = "No HTTP"; return end
-    
-    local tempDir = fs.combine(root, "TEMP")
-    if not fs.exists(tempDir) then fs.makeDir(tempDir) end
-    local tempPath = fs.combine(tempDir, "installer.lua")
-    
-    local resp = http.get("https://raw.githubusercontent.com/BudgetGamers/SystemMC/refs/heads/main/systemMC/installer.lua")
-    if not resp then opt.value = "Failed"; return end
-    local content = resp.readAll()
-    resp.close()
-    
-    local newVer = content:match('local _VERSION = "([%d%.%-a-z]+)"')
-    local localVer = "0.0.0"
-    local helpPath = fs.combine(root, "scripts/apps/help.lua")
-    if fs.exists(helpPath) then
-        local f = fs.open(helpPath, "r")
-        local help = f.readAll()
-        f.close()
-        localVer = help:match('local _VERSION = "([%d%.%-a-z]+)"') or "0.0.0"
-    end
-    
-    if newVer and newVer > localVer then
-        opt.value = "New: " .. newVer
-        local f = fs.open(tempPath, "w")
-        f.write(content)
-        f.close()
-        draw()
-        term.setCursorPos(1, term.getSize())
-        term.setBackgroundColor(colors.blue)
-        term.clearLine()
-        term.write("Update Now? (Y/N): ")
-        local _, char = os.pullEvent("char")
-        if char == "y" then
-            term.setBackgroundColor(colors.black)
-            term.clear()
-            term.setCursorPos(1,1)
-            shell.run(tempPath, root)
-            -- Installer reboots automatically at the end
-        else
-            opt.value = "Update Postponed"
-        end
-    else
-        opt.value = "Up to Date"
-        fs.delete(tempPath)
-        fs.delete(tempDir)
-    end
-end
+loadSettings()
 
-load()
 while true do
     draw()
-    local _, k = os.pullEvent("key")
-    if k == keys.up then selected = selected > 1 and selected - 1 or #options
-    elseif k == keys.down then selected = selected < #options and selected + 1 or 1
-    elseif k == keys.enter then
-        local opt = options[selected]
-        if opt.type == "toggle" then
-            opt.value = not opt.value
-        elseif opt.key == "update" then
-            checkUpdate()
-        end
-    elseif k == keys.q then
-        save()
+    local event, key = os.pullEvent("key")
+    local options = tabs[currentTab].options
+    
+    if key == keys.q then
+        saveSettings()
         break
+    elseif key == keys.up then
+        if #options > 0 then
+            selected = selected > 1 and selected - 1 or #options
+        end
+    elseif key == keys.down then
+        if #options > 0 then
+            selected = selected < #options and selected + 1 or 1
+        end
+    elseif key == keys.left then
+        currentTab = currentTab > 1 and currentTab - 1 or #tabs
+        selected = 1
+    elseif key == keys.right then
+        currentTab = currentTab < #tabs and currentTab + 1 or 1
+        selected = 1
+    elseif key == keys.enter then
+        local opt = options[selected]
+        if opt then
+            if opt.type == "toggle" then
+                opt.value = not opt.value
+            elseif opt.key == "update" then
+                term.setCursorPos(1, 10)
+                term.setBackgroundColor(colors.black)
+                term.clear()
+                print("Checking for updates...")
+                local tempDir = fs.combine(root, "TEMP")
+                if not fs.exists(tempDir) then fs.makeDir(tempDir) end
+                local tempInstaller = fs.combine(tempDir, "installer.lua")
+                shell.run("wget https://raw.githubusercontent.com/BudgetGamers/SystemMC/refs/heads/main/systemMC/installer.lua " .. tempInstaller)
+                
+                if fs.exists(tempInstaller) then
+                    local f = fs.open(tempInstaller, "r")
+                    local content = f.readAll()
+                    f.close()
+                    local newVer = content:match('local _VERSION = "(.-)"')
+                    if newVer and newVer ~= _VERSION then
+                        print("\nNew Version Available: " .. newVer)
+                        print("Update now? (y/n)")
+                        local _, char = os.pullEvent("char")
+                        if char:lower() == "y" then
+                            print("Updating...")
+                            shell.run(tempInstaller, "update", root)
+                            os.reboot()
+                        end
+                    else
+                        print("\nSystem is up to date.")
+                        sleep(1.5)
+                    end
+                    fs.delete(tempDir)
+                end
+            end
+        end
     end
 end
 ]],
