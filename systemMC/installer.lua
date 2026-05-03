@@ -219,6 +219,31 @@ local function scanUserApps()
     startMenu[3].items = apps
 end
 
+local running = true
+local menuOpen = false
+
+local function loadSettings()
+    local path = fs.combine(root, "settings.cfg")
+    if fs.exists(path) then
+        local f = fs.open(path, "r")
+        local content = f.readAll()
+        f.close()
+        for k, v in content:gmatch("([%w_]+)%s*=%s*([%w_]+)") do
+            settings[k] = (v == "true")
+        end
+    end
+end
+
+local function openApp(name, path)
+    logger.log("Opening App: " .. name, "OS")
+    local appWin = window.create(term.current(), 1, 2, w, h - 1, true)
+    local oldTerm = term.redirect(appWin)
+    shell.run(path, root)
+    term.redirect(oldTerm)
+    menuOpen = false
+    drawDesktop()
+end
+
 local function drawDesktop()
     scanUserApps()
     loadSettings()
