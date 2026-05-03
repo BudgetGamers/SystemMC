@@ -95,7 +95,7 @@ local function menuBar(w, isMenuOpen, pocketMode)
     end
     
     local xPos = math.floor(w/2 - #dateStr/2 + 1)
-    if pocketMode then xPos = xPos + 2 end -- Move slightly right
+    if pocketMode then xPos = xPos + 4 end -- Move slightly right
     
     term.setCursorPos(xPos, 1)
     term.setBackgroundColor(colors.blue)
