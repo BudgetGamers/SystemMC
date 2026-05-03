@@ -1,7 +1,7 @@
 -- [[ SystemMC OS Installer v1.0 ]]
 -- Author: Apollo
 -- A premium TUI installer for ComputerCraft Floppy Disks.
-local _VERSION = "0.1.5-b"
+local _VERSION = "0.1.6-b"
 
 local files = {
     -- Root Bootloader
@@ -104,18 +104,19 @@ local function menuBar(w, isMenuOpen, pocketMode)
     term.write(dateStr)
 end
 
-local function drawStartMenu(x, y, selected)
-    local apps = {"1. Explorer  ", "2. Settings  ", "3. Disk Usage", "4. Trash     ", "5. Download  ", "6. About     ", "7. Shutdown  "}
-    for i, app in ipairs(apps) do
+local function drawStartMenu(x, y, menu, selected, subIndex)
+    local items = subIndex and menu[selected].items or menu
+    for i, entry in ipairs(items) do
         term.setCursorPos(x, y + i)
-        if i == selected then
+        if (subIndex == i) or (not subIndex and i == selected) then
             term.setBackgroundColor(colors.lightBlue)
             term.setTextColor(colors.white)
         else
             term.setBackgroundColor(colors.gray)
             term.setTextColor(colors.white)
         end
-        term.write(" " .. app .. " ")
+        local label = entry.name .. (entry.items and "  >" or "")
+        term.write(" " .. label .. string.rep(" ", 14 - #label) .. " ")
     end
 end
 
@@ -177,7 +178,25 @@ local w, h = term.getSize()
 local running = true
 local menuOpen = false
 local selectedApp = 1
+local subIndex = nil
 local settings = { pocketMode = false }
+
+local startMenu = {
+    { name = "System", items = {
+        { name = "Settings", app = "Settings", path = "scripts/apps/settings.lua" },
+        { name = "About", app = "About", path = "scripts/apps/help.lua" },
+        { name = "Shutdown", action = "shutdown" }
+    }},
+    { name = "Utilities", items = {
+        { name = "Explorer", app = "Explorer", path = "scripts/apps/explorer.lua" },
+        { name = "Trash", app = "Trash", path = "scripts/apps/trash.lua" },
+        { name = "Download", app = "Download", path = "scripts/apps/download.lua" },
+        { name = "Disk Usage", app = "Usage", path = "scripts/apps/disk_usage.lua" }
+    }},
+    { name = "User Apps", items = {
+        { name = "Empty", action = "none" }
+    }}
+}
 
 local function loadSettings()
     local path = fs.combine(root, "settings.cfg")
@@ -205,7 +224,8 @@ local function drawDesktop()
     end
     gui.menuBar(w, menuOpen, settings.pocketMode)
     if menuOpen then
-        gui.drawStartMenu(1, 1, selectedApp)
+        local itemsCount = subIndex and #startMenu[selectedApp].items or #startMenu
+        gui.drawStartMenu(1, 1, startMenu, selectedApp, subIndex)
     end
 end
 
@@ -226,42 +246,42 @@ drawDesktop()
 logger.log("Desktop Environment Ready", "OS")
 
 while running do
+    drawDesktop()
     local event, key = os.pullEvent("key")
     
     if not menuOpen then
         if key == keys.enter or key == keys.space then
             menuOpen = true
-            drawDesktop()
+            selectedApp = 1
+            subIndex = nil
         end
     else
-        if key == keys.up then
-            selectedApp = selectedApp > 1 and selectedApp - 1 or 7
-            drawDesktop()
-        elseif key == keys.down then
-            selectedApp = selectedApp < 7 and selectedApp + 1 or 1
-            drawDesktop()
-        elseif key == keys.enter then
-            if selectedApp == 1 then
-                openApp("Explorer", fs.combine(root, "scripts/apps/explorer.lua"))
-            elseif selectedApp == 2 then
-                openApp("Settings", fs.combine(root, "scripts/apps/settings.lua"))
-            elseif selectedApp == 3 then
-                openApp("Usage", fs.combine(root, "scripts/apps/disk_usage.lua"))
-            elseif selectedApp == 4 then
-                openApp("Trash", fs.combine(root, "scripts/apps/trash.lua"))
-            elseif selectedApp == 5 then
-                openApp("Download", fs.combine(root, "scripts/apps/download.lua"))
-            elseif selectedApp == 6 then
-                openApp("About", fs.combine(root, "scripts/apps/help.lua"))
-            elseif selectedApp == 7 then
-                term.setBackgroundColor(colors.black)
-                term.clear()
-                term.setCursorPos(1, 1)
-                running = false
+        if not subIndex then
+            if key == keys.up then
+                selectedApp = selectedApp > 1 and selectedApp - 1 or #startMenu
+            elseif key == keys.down then
+                selectedApp = selectedApp < #startMenu and selectedApp + 1 or 1
+            elseif key == keys.enter or key == keys.right then
+                subIndex = 1
+            elseif key == keys.backspace or key == keys.left or key == keys.space then
+                menuOpen = false
             end
-        elseif key == keys.backspace or key == keys.left or key == keys.space then
-            menuOpen = false
-            drawDesktop()
+        else
+            local items = startMenu[selectedApp].items
+            if key == keys.up then
+                subIndex = subIndex > 1 and subIndex - 1 or #items
+            elseif key == keys.down then
+                subIndex = subIndex < #items and subIndex + 1 or 1
+            elseif key == keys.left or key == keys.backspace then
+                subIndex = nil
+            elseif key == keys.enter then
+                local itm = items[subIndex]
+                if itm and itm.path then
+                    openApp(itm.app, fs.combine(root, itm.path))
+                elseif itm and itm.action == "shutdown" then
+                    running = false
+                end
+            end
         end
     end
 end
