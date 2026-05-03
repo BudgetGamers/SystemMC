@@ -347,7 +347,7 @@ local function draw(list)
     term.setBackgroundColor(colors.blue)
     term.setTextColor(colors.white)
     term.clearLine()
-    term.write(" N:New  H:Help  Q:Quit")
+    term.write(" H:Help Q:Quit")
 end
 
 local function showHelp()
@@ -366,7 +366,8 @@ local function showHelp()
     writeAt(2, 8, "M: Move Item")
     writeAt(2, 9, "K: Drop Item")
     writeAt(2, 10, "N: New Item")
-    writeAt(2, 12, "Any key to close")
+    writeAt(2, 11, "D: Delete Item")
+    writeAt(2, 13, "Any key to close")
     os.pullEvent("key")
 end
 
@@ -411,6 +412,8 @@ while true do
     elseif k == keys.k and moveSrc then
         fs.move(moveSrc, fs.combine(currentPath, fs.getName(moveSrc)))
         moveSrc = nil
+    elseif k == keys.d and item ~= "<<" then
+        fs.delete(fullPath)
     elseif k == keys.n then
         term.setCursorPos(1, term.getSize())
         term.setBackgroundColor(colors.blue)
@@ -456,7 +459,8 @@ local groups = {
         "M       - Mark for Move",
         "K       - Drop Item Here",
         "H       - Show Keybind Popup",
-        "N       - New File/Folder"
+        "N       - New File/Folder",
+        "D       - Delete Item"
     }}
 }
 
