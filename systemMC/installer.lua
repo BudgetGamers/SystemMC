@@ -899,7 +899,7 @@ local tabs = {
         { name = "Pocket Mode", key = "pocketMode", type = "toggle", value = false }
     }},
     { name = "Updates", options = {
-        { name = "Check Update", key = "update", type = "action", value = "Press Enter" }
+        { name = "Check Update", key = "update", type = "action", value = " " }
     }},
     { name = "Notifications(WIP)", options = {} },
     { name = "Colors(WIP)", options = {} },
