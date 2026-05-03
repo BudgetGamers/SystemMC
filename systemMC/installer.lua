@@ -326,7 +326,7 @@ local function draw(list)
             term.setCursorPos(1, 1 + i)
             local item = list[idx]
             local full = fs.combine(currentPath, item)
-            local isDir = item == ".." or fs.isDir(full)
+            local isDir = item == "<<" or fs.isDir(full)
             
             if idx == selected then
                 term.setBackgroundColor(colors.lightBlue)
@@ -352,7 +352,7 @@ end
 
 while true do
     local list = fs.list(currentPath)
-    if currentPath ~= root and currentPath ~= "/" then table.insert(list, 1, "..") end
+    if currentPath ~= "/" then table.insert(list, 1, "<<") end
     draw(list)
     local e, k = os.pullEvent("key")
     local item = list[selected]
@@ -360,7 +360,7 @@ while true do
     if k == keys.up then selected = selected > 1 and selected - 1 or #list
     elseif k == keys.down then selected = selected < #list and selected + 1 or 1
     elseif k == keys.enter then
-        if item == ".." then
+        if item == "<<" then
             currentPath = fs.getDir(currentPath)
             selected, scroll = 1, 0
         elseif fs.isDir(fullPath) then
@@ -376,7 +376,7 @@ while true do
         shell.run(fullPath)
         print("\nPress any key...")
         os.pullEvent("key")
-    elseif k == keys.c and fs.isDir(fullPath) and item ~= ".." then
+    elseif k == keys.c and fs.isDir(fullPath) and item ~= "<<" then
         term.setCursorPos(1, term.getSize())
         term.write("Pack name: ")
         local out = read()
@@ -386,7 +386,7 @@ while true do
         term.write("Folder name: ")
         local out = read()
         if out ~= "" then unpack(fullPath, fs.combine(currentPath, out)) end
-    elseif k == keys.m and item ~= ".." then
+    elseif k == keys.m and item ~= "<<" then
         moveSrc = fullPath
     elseif k == keys.k and moveSrc then
         fs.move(moveSrc, fs.combine(currentPath, fs.getName(moveSrc)))
@@ -411,7 +411,7 @@ print(" Left/Right - Navigate")
 print(" Enter - Open Start Menu")
 print(" Ctrl+Q - Close App")
 print(" Explorer Hotkeys:")
-print(" Enter - Enter Folder / ..")
+print(" Enter - Enter Folder / <<")
 print(" E - Edit File")
 print(" R - Run .lua File")
 print(" C - Pack Folder to .tar")
