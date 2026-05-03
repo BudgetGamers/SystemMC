@@ -670,7 +670,8 @@ local root = ...
 local settingsPath = fs.combine(root, "settings.cfg")
 local selected, scroll = 1, 0
 local options = {
-    { name = "Pocket Mode", key = "pocketMode", value = false }
+    { name = "Pocket Mode", key = "pocketMode", type = "toggle", value = false },
+    { name = "Check Update", key = "update", type = "action", value = "Press Enter" }
 }
 
 local function load()
@@ -679,7 +680,9 @@ local function load()
         local content = f.readAll()
         f.close()
         for _, opt in ipairs(options) do
-            opt.value = content:match(opt.key .. "%s*=%s*true") and true or false
+            if opt.type == "toggle" then
+                opt.value = content:match(opt.key .. "%s*=%s*true") and true or false
+            end
         end
     end
 end
@@ -687,7 +690,9 @@ end
 local function save()
     local f = fs.open(settingsPath, "w")
     for _, opt in ipairs(options) do
-        f.write(opt.key .. " = " .. tostring(opt.value) .. "\n")
+        if opt.type == "toggle" then
+            f.write(opt.key .. " = " .. tostring(opt.value) .. "\n")
+        end
     end
     f.close()
 end
@@ -718,7 +723,12 @@ local function draw()
                 term.setBackgroundColor(colors.gray)
                 term.setTextColor(colors.white)
             end
-            local valStr = opt.value and "[ ENABLED ]" or "[ DISABLED ]"
+            local valStr = ""
+            if opt.type == "toggle" then
+                valStr = opt.value and "[ ENABLED ]" or "[ DISABLED ]"
+            else
+                valStr = "[ " .. tostring(opt.value) .. " ]"
+            end
             local padding = w - #opt.name - #valStr - 3
             term.write(" " .. opt.name .. string.rep(" ", padding) .. valStr .. " ")
         end
@@ -728,7 +738,60 @@ local function draw()
     term.setBackgroundColor(colors.blue)
     term.setTextColor(colors.white)
     term.clearLine()
-    term.write(" Enter:Toggle  Q:Save & Quit")
+    term.write(" Enter:Action  Q:Save & Quit")
+end
+
+local function checkUpdate()
+    local opt = options[2]
+    opt.value = "Checking..."
+    draw()
+    if not http then opt.value = "No HTTP"; return end
+    
+    local tempDir = fs.combine(root, "TEMP")
+    if not fs.exists(tempDir) then fs.makeDir(tempDir) end
+    local tempPath = fs.combine(tempDir, "installer.lua")
+    
+    local resp = http.get("https://raw.githubusercontent.com/BudgetGamers/SystemMC/refs/heads/main/systemMC/installer.lua")
+    if not resp then opt.value = "Failed"; return end
+    local content = resp.readAll()
+    resp.close()
+    
+    local f = fs.open(tempPath, "w")
+    f.write(content)
+    f.close()
+    
+    local newVer = content:match('print%("SystemMC OS ([%d%.%-a-z]+)"%)')
+    local localVer = "0.0.0"
+    local helpPath = fs.combine(root, "scripts/apps/help.lua")
+    if fs.exists(helpPath) then
+        local f = fs.open(helpPath, "r")
+        local help = f.readAll()
+        f.close()
+        localVer = help:match('print%("SystemMC OS ([%d%.%-a-z]+)"%)') or "0.0.0"
+    end
+    
+    if newVer and newVer > localVer then
+        opt.value = "New: " .. newVer
+        draw()
+        term.setCursorPos(1, term.getSize())
+        term.setBackgroundColor(colors.blue)
+        term.clearLine()
+        term.write("Update Now? (Y/N): ")
+        local _, char = os.pullEvent("char")
+        if char == "y" then
+            term.setBackgroundColor(colors.black)
+            term.clear()
+            term.setCursorPos(1,1)
+            shell.run(tempPath, root)
+            -- Installer reboots automatically at the end
+        else
+            opt.value = "Update Postponed"
+        end
+    else
+        opt.value = "Up to Date"
+        fs.delete(tempPath)
+        fs.delete(tempDir)
+    end
 end
 
 load()
@@ -738,7 +801,12 @@ while true do
     if k == keys.up then selected = selected > 1 and selected - 1 or #options
     elseif k == keys.down then selected = selected < #options and selected + 1 or 1
     elseif k == keys.enter then
-        options[selected].value = not options[selected].value
+        local opt = options[selected]
+        if opt.type == "toggle" then
+            opt.value = not opt.value
+        elseif opt.key == "update" then
+            checkUpdate()
+        end
     elseif k == keys.q then
         save()
         break
