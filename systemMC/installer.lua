@@ -778,22 +778,22 @@ end
 
 local function install(targetPath, isUpdate, doFormat)
     drawBackground()
-    local title = doFormat and "Formatting & Installing..." or (isUpdate and "Updating SystemMC..." or "Installing SystemMC...")
-    drawBox(4, 5, w - 6, 10, title)
+    local title = doFormat and "Installing..." or (isUpdate and "Updating..." or "Setup...")
+    drawBox(2, 4, w - 2, 12, title)
     
     if doFormat then
-        centerText("Wiping target...", 8, colors.white, colors.red)
+        centerText("Wiping target...", 6, colors.white, colors.red)
         local list = fs.list(targetPath)
         for _, item in ipairs(list) do
-            if item ~= "startup.lua" or targetPath ~= "/" then -- Don't delete self if installing to /
+            if item ~= "startup.lua" or targetPath ~= "/" then
                 fs.delete(fs.combine(targetPath, item))
             end
         end
         sleep(0.5)
     end
 
-    centerText("Minimizing System Files...", 8, colors.white, colors.blue)
-    sleep(0.8)
+    centerText("Minimizing Files...", 6, colors.white, colors.blue)
+    sleep(0.5)
 
     local total = 0
     for _ in pairs(files) do total = total + 1 end
@@ -806,14 +806,15 @@ local function install(targetPath, isUpdate, doFormat)
         -- Progress Bar UI
         term.setBackgroundColor(colors.white)
         term.setTextColor(colors.black)
-        term.setCursorPos(6, 8)
-        term.write("Processing: " .. path .. string.rep(" ", w - #path - 15))
+        term.setCursorPos(4, 8)
+        local displayPath = #path > w - 10 and ".." .. path:sub(-w + 12) or path
+        term.write("File: " .. displayPath .. string.rep(" ", w - #displayPath - 8))
         
-        local progress = math.floor((current / total) * (w - 10))
-        term.setCursorPos(6, 10)
+        local progress = math.floor((current / total) * (w - 6))
+        term.setCursorPos(4, 10)
         term.setBackgroundColor(colors.gray)
-        term.write(string.rep(" ", w - 10))
-        term.setCursorPos(6, 10)
+        term.write(string.rep(" ", w - 6))
+        term.setCursorPos(4, 10)
         term.setBackgroundColor(colors.lime)
         term.write(string.rep(" ", progress))
 
@@ -828,7 +829,7 @@ local function install(targetPath, isUpdate, doFormat)
         sleep(0.05)
     end
 
-    centerText(doFormat and "Format & Install Complete!" or (isUpdate and "Update Complete!" or "Installation Complete!"), 12, colors.white, colors.green)
+    centerText(doFormat and "Install Complete!" or "Update Complete!", 12, colors.white, colors.green)
     centerText("Press any key to REBOOT", 14, colors.white, colors.gray)
     os.pullEvent("key")
     os.reboot()
@@ -844,19 +845,19 @@ local doFormat = false
 while true do
     drawBackground()
     if step == 1 then -- Welcome
-        drawBox(5, 5, w-8, 8, "SystemMC Installation")
-        centerText("Welcome to the SystemMC Installer", 7, colors.white, colors.black)
-        centerText("This tool will guide you through", 9, colors.white, colors.gray)
-        centerText("installing the OS on your computer.", 10, colors.white, colors.gray)
-        centerText("Press [ENTER] to Begin", 12, colors.white, colors.blue)
+        drawBox(2, 4, w-2, 10, "SystemMC Setup")
+        centerText("Welcome to SystemMC", 6, colors.white, colors.black)
+        centerText("Installing OS to your", 8, colors.white, colors.gray)
+        centerText("selected device.", 9, colors.white, colors.gray)
+        centerText("[ ENTER ] to Begin", 12, colors.white, colors.blue)
         local _, k = os.pullEvent("key")
         if k == keys.enter then step = 2 end
         
     elseif step == 2 then -- Select Drive
         drives = getAvailableDrives()
-        drawBox(4, 3, w-6, h-5, "Partitioning: Select Target Drive")
+        drawBox(2, 3, w-2, h-4, "Select Target Drive")
         for i, dr in ipairs(drives) do
-            term.setCursorPos(6, 4 + i)
+            term.setCursorPos(3, 4 + i)
             if i == selIdx then
                 term.setBackgroundColor(colors.lightBlue)
                 term.setTextColor(colors.white)
@@ -864,9 +865,10 @@ while true do
                 term.setBackgroundColor(colors.white)
                 term.setTextColor(colors.black)
             end
-            term.write(" " .. dr.name .. " (" .. dr.path .. ") ")
+            local name = #dr.name > w-12 and dr.name:sub(1, w-12) or dr.name
+            term.write(" " .. name .. " (" .. dr.path .. ") ")
         end
-        centerText("Arrows:Nav [ENTER]:Select", h-3, colors.white, colors.blue)
+        centerText("[ENTER]:Select", h-2, colors.white, colors.blue)
         local _, k = os.pullEvent("key")
         if k == keys.up then selIdx = selIdx > 1 and selIdx - 1 or #drives
         elseif k == keys.down then selIdx = selIdx < #drives and selIdx + 1 or 1
@@ -877,19 +879,26 @@ while true do
 
     elseif step == 3 then -- Options
         local isUpdate = fs.exists(fs.combine(targetDrive.path, "scripts/systemMC/kernel.lua"))
-        drawBox(5, 5, w-8, 8, "Installation Options")
-        centerText("Target: " .. targetDrive.name, 7, colors.white, colors.black)
-        centerText("Status: " .. (isUpdate and "OS Found" or "New Disk"), 9, colors.white, colors.gray)
-        centerText("[U] Update (Keep Files)   [F] Format & Install", 11, colors.white, colors.blue)
+        drawBox(2, 4, w-2, 10, "Setup Options")
+        centerText("Target: " .. targetDrive.path, 6, colors.white, colors.black)
+        centerText("Status: " .. (isUpdate and "OS Found" or "Empty"), 8, colors.white, colors.gray)
+        
+        if targetDrive.path == "/" then
+            centerText("[U] Update (Keep Files)", 11, colors.white, colors.blue)
+        else
+            centerText("[U] Update  [F] Format", 11, colors.white, colors.blue)
+        end
+        
         local _, k = os.pullEvent("key")
         if k == keys.u then doFormat = false; step = 4
-        elseif k == keys.f then doFormat = true; step = 4
+        elseif k == keys.f and targetDrive.path ~= "/" then doFormat = true; step = 4
         elseif k == keys.backspace then step = 2 end
 
     elseif step == 4 then -- Final Confirm
-        drawBox(5, 6, w-8, 6, "Confirm Installation")
-        centerText("Final warning: Install to " .. targetDrive.path .. "?", 8, colors.white, colors.red)
-        centerText("[ENTER] Finalize  [BACKSPACE] Cancel", 10, colors.white, colors.gray)
+        drawBox(2, 5, w-2, 8, "Confirmation")
+        centerText("Install to " .. targetDrive.path .. "?", 7, colors.white, colors.red)
+        centerText("[ENTER] Finalize", 10, colors.white, colors.blue)
+        centerText("[BACKSPACE] Cancel", 11, colors.white, colors.gray)
         local _, k = os.pullEvent("key")
         if k == keys.enter then 
             install(targetDrive.path, not doFormat, doFormat)
