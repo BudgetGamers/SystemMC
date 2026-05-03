@@ -104,7 +104,7 @@ local function menuBar(w, isMenuOpen, pocketMode)
 end
 
 local function drawStartMenu(x, y, selected)
-    local apps = {"1. Explorer  ", "2. Settings  ", "3. Disk Usage", "4. About      ", "5. Shutdown   "}
+    local apps = {"1. Explorer  ", "2. Settings  ", "3. Disk Usage", "4. Compressor", "5. About      ", "6. Shutdown   "}
     for i, app in ipairs(apps) do
         term.setCursorPos(x, y + i)
         if i == selected then
@@ -233,10 +233,10 @@ while running do
         end
     else
         if key == keys.up then
-            selectedApp = selectedApp > 1 and selectedApp - 1 or 5
+            selectedApp = selectedApp > 1 and selectedApp - 1 or 6
             drawDesktop()
         elseif key == keys.down then
-            selectedApp = selectedApp < 5 and selectedApp + 1 or 1
+            selectedApp = selectedApp < 6 and selectedApp + 1 or 1
             drawDesktop()
         elseif key == keys.enter then
             if selectedApp == 1 then
@@ -246,8 +246,10 @@ while running do
             elseif selectedApp == 3 then
                 openApp("Usage", fs.combine(root, "scripts/apps/disk_usage.lua"))
             elseif selectedApp == 4 then
-                openApp("About", fs.combine(root, "scripts/apps/help.lua"))
+                openApp("Compress", fs.combine(root, "scripts/apps/compressor.lua"))
             elseif selectedApp == 5 then
+                openApp("About", fs.combine(root, "scripts/apps/help.lua"))
+            elseif selectedApp == 6 then
                 term.setBackgroundColor(colors.black)
                 term.clear()
                 term.setCursorPos(1, 1)
@@ -526,6 +528,95 @@ while true do
         scroll = math.max(0, scroll - 1)
     elseif k == keys.down then
         if #drives > scroll + maxVisible then scroll = scroll + 1 end
+    elseif k == keys.q then
+        break
+    end
+end
+]],
+
+    -- Compressor App
+    ["scripts/apps/compressor.lua"] = [[
+local root = ...
+local function drawHeader()
+    term.setBackgroundColor(colors.gray)
+    term.setTextColor(colors.white)
+    term.clear()
+    term.setCursorPos(1, 1)
+    term.setBackgroundColor(colors.blue)
+    term.clearLine()
+    term.write(" SystemMC Archiver")
+end
+
+local function pack(dir, output)
+    local files = {}
+    local function scan(p)
+        local list = fs.list(p)
+        for _, item in ipairs(list) do
+            local full = fs.combine(p, item)
+            if fs.isDir(full) then
+                scan(full)
+            else
+                local f = fs.open(full, "r")
+                files[full:sub(#dir + 2)] = f.readAll()
+                f.close()
+            end
+        end
+    end
+    scan(dir)
+    local f = fs.open(output, "w")
+    f.write(textutils.serialize(files))
+    f.close()
+end
+
+local function unpack(file, dir)
+    local f = fs.open(file, "r")
+    local data = f.readAll()
+    f.close()
+    local files = textutils.unserialize(data)
+    if not files then return end
+    for path, content in pairs(files) do
+        local full = fs.combine(dir, path)
+        local d = fs.getDir(full)
+        if not fs.exists(d) then fs.makeDir(d) end
+        local out = fs.open(full, "w")
+        out.write(content)
+        out.close()
+    end
+end
+
+while true do
+    drawHeader()
+    term.setBackgroundColor(colors.gray)
+    term.setCursorPos(2, 3)
+    print("1. Pack (Folder -> .tar)")
+    print(" 2. Unpack (.tar -> Folder)")
+    print(" Q. Quit")
+    
+    local _, k = os.pullEvent("key")
+    if k == keys.one then
+        term.setCursorPos(2, 7)
+        term.write("Source: ")
+        local src = read()
+        term.setCursorPos(2, 8)
+        term.write("Output: ")
+        local out = read()
+        if fs.isDir(src) then
+            pack(src, out)
+            print(" Success!")
+            sleep(1)
+        end
+    elseif k == keys.two then
+        term.setCursorPos(2, 7)
+        term.write("Archive: ")
+        local src = read()
+        term.setCursorPos(2, 8)
+        term.write("Dest: ")
+        local dst = read()
+        if fs.exists(src) then
+            unpack(src, dst)
+            print(" Success!")
+            sleep(1)
+        end
     elseif k == keys.q then
         break
     end
