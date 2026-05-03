@@ -500,7 +500,7 @@ local function draw()
     term.setBackgroundColor(colors.blue)
     term.setTextColor(colors.white)
     term.clearLine()
-    term.write(" Arrows:Nav  Enter:Toggle  Q:Quit")
+    term.write(" Enter:Toggle  Q:Quit")
 end
 
 while true do
