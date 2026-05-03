@@ -748,16 +748,17 @@ local function centerText(text, y, bg, fg)
     term.write(text)
 end
 
-local function findDrive()
-    local drives = {peripheral.find("drive")}
-    for _, d in ipairs(drives) do
-        if d.hasData() then
-            local side = peripheral.getName(d)
-            local path = disk.getMountPath(side)
-            if path then return side, path end
+local function getAvailableDrives()
+    local d = { { name = "Internal Storage", path = "/", side = "local" } }
+    local attached = {peripheral.find("drive")}
+    for _, dr in ipairs(attached) do
+        local side = peripheral.getName(dr)
+        local path = disk.getMountPath(side)
+        if path then
+            table.insert(d, { name = "Disk ("..side..")", path = path, side = side })
         end
     end
-    return nil, nil
+    return d
 end
 
 local function minimize(content)
@@ -775,16 +776,18 @@ local function minimize(content)
     return table.concat(lines, "\n")
 end
 
-local function install(isUpdate, doFormat)
+local function install(targetPath, isUpdate, doFormat)
     drawBackground()
     local title = doFormat and "Formatting & Installing..." or (isUpdate and "Updating SystemMC..." or "Installing SystemMC...")
     drawBox(4, 5, w - 6, 10, title)
     
     if doFormat then
-        centerText("Wiping disk...", 8, colors.white, colors.red)
-        local list = fs.list(mountPath)
+        centerText("Wiping target...", 8, colors.white, colors.red)
+        local list = fs.list(targetPath)
         for _, item in ipairs(list) do
-            fs.delete(fs.combine(mountPath, item))
+            if item ~= "startup.lua" or targetPath ~= "/" then -- Don't delete self if installing to /
+                fs.delete(fs.combine(targetPath, item))
+            end
         end
         sleep(0.5)
     end
@@ -798,7 +801,7 @@ local function install(isUpdate, doFormat)
 
     for path, content in pairs(files) do
         current = current + 1
-        local fullPath = fs.combine(mountPath, path)
+        local fullPath = fs.combine(targetPath, path)
         
         -- Progress Bar UI
         term.setBackgroundColor(colors.white)
@@ -832,36 +835,66 @@ local function install(isUpdate, doFormat)
 end
 
 -- Main Loop
+local step = 1
+local drives = {}
+local selIdx = 1
+local targetDrive = nil
+local doFormat = false
+
 while true do
     drawBackground()
-    drawBox(5, 5, w - 8, 8, "Configuration")
-    
-    driveSide, mountPath = findDrive()
-    
-    if not driveSide then
-        centerText("Insert a Floppy Disk", 8, colors.white, colors.red)
-        centerText("Waiting for peripheral...", 10, colors.white, colors.black)
-        sleep(1)
-    else
-        local isUpdate = fs.exists(fs.combine(mountPath, "scripts/systemMC/kernel.lua"))
+    if step == 1 then -- Welcome
+        drawBox(5, 5, w-8, 8, "SystemMC Installation")
+        centerText("Welcome to the SystemMC Installer", 7, colors.white, colors.black)
+        centerText("This tool will guide you through", 9, colors.white, colors.gray)
+        centerText("installing the OS on your computer.", 10, colors.white, colors.gray)
+        centerText("Press [ENTER] to Begin", 12, colors.white, colors.blue)
+        local _, k = os.pullEvent("key")
+        if k == keys.enter then step = 2 end
         
-        centerText("Floppy Detected: " .. driveSide .. " (" .. mountPath .. ")", 8, colors.white, colors.black)
-        if isUpdate then
-            centerText("Status: OS Found (Ready to Update)", 9, colors.white, colors.blue)
-            centerText("[ENTER] Update  [F] Format & Wipe", 11, colors.white, colors.blue)
-        else
-            centerText("Status: Empty / New Disk", 9, colors.white, colors.gray)
-            centerText("[ENTER] Install [F] Format & Wipe", 11, colors.white, colors.blue)
+    elseif step == 2 then -- Select Drive
+        drives = getAvailableDrives()
+        drawBox(4, 3, w-6, h-5, "Partitioning: Select Target Drive")
+        for i, dr in ipairs(drives) do
+            term.setCursorPos(6, 4 + i)
+            if i == selIdx then
+                term.setBackgroundColor(colors.lightBlue)
+                term.setTextColor(colors.white)
+            else
+                term.setBackgroundColor(colors.white)
+                term.setTextColor(colors.black)
+            end
+            term.write(" " .. dr.name .. " (" .. dr.path .. ") ")
         end
-        
-        local event, key = os.pullEvent("key")
-        if key == keys.enter then
-            install(isUpdate, false)
+        centerText("Arrows:Nav [ENTER]:Select", h-3, colors.white, colors.blue)
+        local _, k = os.pullEvent("key")
+        if k == keys.up then selIdx = selIdx > 1 and selIdx - 1 or #drives
+        elseif k == keys.down then selIdx = selIdx < #drives and selIdx + 1 or 1
+        elseif k == keys.enter then 
+            targetDrive = drives[selIdx]
+            step = 3 
+        elseif k == keys.backspace then step = 1 end
+
+    elseif step == 3 then -- Options
+        local isUpdate = fs.exists(fs.combine(targetDrive.path, "scripts/systemMC/kernel.lua"))
+        drawBox(5, 5, w-8, 8, "Installation Options")
+        centerText("Target: " .. targetDrive.name, 7, colors.white, colors.black)
+        centerText("Status: " .. (isUpdate and "OS Found" or "New Disk"), 9, colors.white, colors.gray)
+        centerText("[U] Update (Keep Files)   [F] Format & Install", 11, colors.white, colors.blue)
+        local _, k = os.pullEvent("key")
+        if k == keys.u then doFormat = false; step = 4
+        elseif k == keys.f then doFormat = true; step = 4
+        elseif k == keys.backspace then step = 2 end
+
+    elseif step == 4 then -- Final Confirm
+        drawBox(5, 6, w-8, 6, "Confirm Installation")
+        centerText("Final warning: Install to " .. targetDrive.path .. "?", 8, colors.white, colors.red)
+        centerText("[ENTER] Finalize  [BACKSPACE] Cancel", 10, colors.white, colors.gray)
+        local _, k = os.pullEvent("key")
+        if k == keys.enter then 
+            install(targetDrive.path, not doFormat, doFormat)
             break
-        elseif key == keys.f then
-            install(false, true)
-            break
-        end
+        elseif k == keys.backspace then step = 3 end
     end
 end
 
