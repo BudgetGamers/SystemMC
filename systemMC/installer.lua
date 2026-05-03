@@ -425,6 +425,25 @@ local function drawPopup(title, opts)
     end
 end
 
+local function drawInputPopup(title)
+    local w, h = term.getSize()
+    local win = window.create(term.current(), math.floor(w/2-10), math.floor(h/2-2), 21, 4)
+    win.setBackgroundColor(colors.white)
+    win.setTextColor(colors.black)
+    win.clear()
+    win.setCursorPos(2, 1)
+    win.write(title)
+    win.setCursorPos(2, 2)
+    win.setBackgroundColor(colors.gray)
+    win.setTextColor(colors.white)
+    win.write(string.rep(" ", 19))
+    win.setCursorPos(2, 2)
+    local old = term.redirect(win)
+    local input = read()
+    term.redirect(old)
+    return input
+end
+
 while true do
     local list = fs.list(currentPath)
     if currentPath ~= "/" then table.insert(list, 1, "<<") end
@@ -452,14 +471,10 @@ while true do
         print("\nPress any key...")
         os.pullEvent("key")
     elseif k == keys.c and fs.isDir(fullPath) and item ~= "<<" then
-        term.setCursorPos(1, term.getSize())
-        term.write("Pack name: ")
-        local out = read()
+        local out = drawInputPopup("Pack name:")
         if out ~= "" then pack(fullPath, fs.combine(currentPath, out .. ".tar")) end
     elseif k == keys.u and not fs.isDir(fullPath) and item:match("%.tar$") then
-        term.setCursorPos(1, term.getSize())
-        term.write("Folder name: ")
-        local out = read()
+        local out = drawInputPopup("Folder name:")
         if out ~= "" then unpack(fullPath, fs.combine(currentPath, out)) end
     elseif k == keys.m and item ~= "<<" then
         moveSrc = fullPath
@@ -474,11 +489,7 @@ while true do
             fs.delete(fullPath)
         end
     elseif k == keys.n then
-        term.setCursorPos(1, term.getSize())
-        term.setBackgroundColor(colors.blue)
-        term.clearLine()
-        term.write("Name (/dir): ")
-        local name = read()
+        local name = drawInputPopup("Name (/dir):")
         if name ~= "" then
             if name:sub(1,1) == "/" then
                 fs.makeDir(fs.combine(currentPath, name:sub(2)))
@@ -614,7 +625,7 @@ local root = ...
 local selected, scroll = 1, 0
 local groups = {
     { title = "System Info", expanded = true, items = {
-        "SystemMC OS 0.1.1-b",
+        "SystemMC OS 0.1.2-b",
         "TempleOS-inspired TUI",
         "Alpha Release"
     }},
