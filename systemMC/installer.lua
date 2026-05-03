@@ -1,7 +1,7 @@
 -- [[ SystemMC OS Installer v1.0 ]]
 -- Author: Apollo
 -- A premium TUI installer for ComputerCraft Floppy Disks.
-local _VERSION = "0.1.14-b"
+local _VERSION = "0.1.15-b"
 
 local files = {
     -- Root Bootloader
@@ -892,7 +892,7 @@ local _VERSION = "{{VERSION}}"
 local root = ...
 local selected = 1
 local currentTab = 1
-local scroll = 0
+local tabScroll = 0
 
 local tabs = {
     { name = "General", options = {
@@ -951,27 +951,42 @@ local function draw()
     term.clearLine()
     term.write(" Settings Manager")
     
-    -- Tabs
+    -- Tabs with scrolling logic
     term.setCursorPos(1, 2)
     term.setBackgroundColor(colors.lightGray)
     term.setTextColor(colors.black)
     term.clearLine()
-    local tx = 1
+    
+    local currentX = 1
+    for i = 1, currentTab - 1 do currentX = currentX + #tabs[i].name + 2 end
+    local tabW = #tabs[currentTab].name + 2
+    
+    if currentX < tabScroll + 1 then tabScroll = currentX - 1
+    elseif currentX + tabW > tabScroll + w then tabScroll = currentX + tabW - w end
+    
+    local drawX = 1 - tabScroll
     for i, t in ipairs(tabs) do
-        if i == currentTab then
-            term.setBackgroundColor(colors.blue)
-            term.setTextColor(colors.white)
-        else
-            term.setBackgroundColor(colors.lightGray)
-            term.setTextColor(colors.black)
+        local label = " " .. t.name .. " "
+        if drawX + #label > 0 and drawX <= w then
+            term.setCursorPos(math.max(1, drawX), 2)
+            if i == currentTab then
+                term.setBackgroundColor(colors.blue)
+                term.setTextColor(colors.white)
+            else
+                term.setBackgroundColor(colors.lightGray)
+                term.setTextColor(colors.black)
+            end
+            local start = drawX < 1 and (2 - drawX) or 1
+            local length = math.min(#label - start + 1, w - math.max(1, drawX) + 1)
+            term.write(label:sub(start, start + length - 1))
         end
-        term.write(" " .. t.name .. " ")
+        drawX = drawX + #label
     end
     
     -- Options
     local options = tabs[currentTab].options
     if #options == 0 then
-        term.setCursorPos(w/2 - 4, h/2)
+        term.setCursorPos(math.floor(w/2 - 2), math.floor(h/2))
         term.setBackgroundColor(colors.gray)
         term.setTextColor(colors.lightGray)
         term.write("(WIP)")
@@ -996,7 +1011,7 @@ local function draw()
             
             local label = opt.name
             local padding = w - #label - #valStr - 4
-            term.write(" " .. label .. string.rep(" ", padding) .. valStr .. " ")
+            term.write(" " .. label .. string.rep(" ", math.max(0, padding)) .. valStr .. " ")
         end
     end
     
