@@ -1,7 +1,7 @@
 -- [[ SystemMC OS Installer v1.0 ]]
 -- Author: Apollo
 -- A premium TUI installer for ComputerCraft Floppy Disks.
-local _VERSION = "0.1.12-b"
+local _VERSION = "0.1.13-b"
 
 local files = {
     -- Root Bootloader
@@ -81,34 +81,27 @@ local function menuBar(w, isMenuOpen, pocketMode)
     term.setCursorPos(1, 1)
     term.setBackgroundColor(colors.blue)
     term.clearLine()
+    
+    -- Start Button
     term.setBackgroundColor(isMenuOpen and colors.lightBlue or colors.blue)
     term.setTextColor(colors.white)
     term.write(" [ START ] ")
     
+    -- Centered Clock with Pocket Mode logic
     local dateStr = os.date("%Y-%m-%d %H:%M")
     if pocketMode then
-        dateStr = os.date("%y-%m-%d %H:%M"):gsub("-0", "-")
+        -- Remove first half of year (2026 -> 26) and leading zeros (05-03 -> 5-3)
+        dateStr = os.date("%y-%m-%d %H:%M")
+        dateStr = dateStr:gsub("-0", "-")
     end
+    
     local xPos = math.floor(w/2 - #dateStr/2 + 1)
-    if pocketMode then xPos = xPos + 4 end
+    if pocketMode then xPos = xPos + 4 end -- Move slightly right
+    
     term.setCursorPos(xPos, 1)
     term.setBackgroundColor(colors.blue)
     term.setTextColor(colors.white)
     term.write(dateStr)
-end
-
-local function drawClock(w, pocketMode)
-    local dateStr = os.date("%Y-%m-%d %H:%M")
-    if pocketMode then
-        dateStr = os.date("%y-%m-%d %H:%M"):gsub("-0", "-")
-    end
-    local xPos = math.floor(w/2 - #dateStr/2 + 1)
-    if pocketMode then xPos = xPos + 4 end
-    term.setCursorPos(xPos, 1)
-    term.setBackgroundColor(colors.blue)
-    term.setTextColor(colors.white)
-    term.write(dateStr)
-    return dateStr
 end
 
 local function drawStartMenu(x, y, items, selected)
@@ -126,7 +119,7 @@ local function drawStartMenu(x, y, items, selected)
     end
 end
 
-return { drawBox = drawBox, menuBar = menuBar, drawStartMenu = drawStartMenu, drawClock = drawClock }
+return { drawBox = drawBox, menuBar = menuBar, drawStartMenu = drawStartMenu }
 ]],
 
     -- Logger Library
@@ -190,8 +183,7 @@ local running = true
 local menuOpen = false
 local selectedIdx = 1
 local menuStack = {}
-local settings = { pocketMode = false, gpuAccel = false }
-local lastClock = ""
+local settings = { pocketMode = false }
 
 -- Pre-declare functions for mutual visibility
 local scanDir, scanUserApps, loadSettings, drawDesktop, openApp
@@ -249,29 +241,19 @@ loadSettings = function()
     end
 end
 
-drawDesktop = function(partial)
-    if not partial or not settings.gpuAccel then
-        loadSettings()
-        term.setBackgroundColor(colors.black)
-        term.setTextColor(colors.blue)
-        term.clear()
-        for i = 2, h do
-            if i % 2 == 0 then
-                term.setCursorPos(1, i)
-                term.blit(string.rep("\15", w), string.rep("b", w), string.rep("f", w))
-            end
-        end
-        gui.menuBar(w, menuOpen, settings.pocketMode)
-        lastClock = os.date("%M")
-    else
-        -- Partial update: only the clock
-        local currentMin = os.date("%M")
-        if currentMin ~= lastClock then
-            lastClock = gui.drawClock(w, settings.pocketMode)
-            lastClock = currentMin
+drawDesktop = function()
+    scanUserApps()
+    loadSettings()
+    term.setBackgroundColor(colors.black)
+    term.setTextColor(colors.blue)
+    term.clear()
+    for i = 2, h do
+        if i % 2 == 0 then
+            term.setCursorPos(1, i)
+            term.blit(string.rep("\15", w), string.rep("b", w), string.rep("f", w))
         end
     end
-    
+    gui.menuBar(w, menuOpen, settings.pocketMode)
     if menuOpen then
         gui.drawStartMenu(1, 1, currentMenu, selectedIdx)
     end
@@ -287,60 +269,44 @@ openApp = function(name, path)
     drawDesktop()
 end
 
-local clockTimer = os.startTimer(1)
-
 while running do
-    local event, p1, p2, p3 = os.pullEvent()
-    if event == "timer" and p1 == clockTimer then
-        drawDesktop(true) -- Partial update
-        clockTimer = os.startTimer(1)
-    elseif event == "term_resize" or event == "monitor_touch" or event == "mouse_click" then
-        w, h = term.getSize()
-        drawDesktop() -- Full refresh
-    elseif event == "key" then
-        local key = p1
-        if not menuOpen then
-            if key == keys.enter or key == keys.space then
-                menuOpen = true
+    drawDesktop()
+    local event, key = os.pullEvent("key")
+    
+    if not menuOpen then
+        if key == keys.enter or key == keys.space then
+            menuOpen = true
+            selectedIdx = 1
+            menuStack = {}
+            currentMenu = startMenu
+        end
+    else
+        if key == keys.up then
+            selectedIdx = selectedIdx > 1 and selectedIdx - 1 or #currentMenu
+        elseif key == keys.down then
+            selectedIdx = selectedIdx < #currentMenu and selectedIdx + 1 or 1
+        elseif key == keys.enter or key == keys.right then
+            local itm = currentMenu[selectedIdx]
+            if itm.items then
+                table.insert(menuStack, { menu = currentMenu, idx = selectedIdx })
+                currentMenu = itm.items
                 selectedIdx = 1
-                menuStack = {}
-                currentMenu = startMenu
-                drawDesktop()
-            end
-        else
-            if key == keys.up then
-                selectedIdx = selectedIdx > 1 and selectedIdx - 1 or #currentMenu
-                drawDesktop()
-            elseif key == keys.down then
-                selectedIdx = selectedIdx < #currentMenu and selectedIdx + 1 or 1
-                drawDesktop()
-            elseif key == keys.enter or key == keys.right then
-                local itm = currentMenu[selectedIdx]
-                if itm.items then
-                    table.insert(menuStack, { menu = currentMenu, idx = selectedIdx })
-                    currentMenu = itm.items
-                    selectedIdx = 1
-                    drawDesktop()
-                elseif itm.path then
-                    menuOpen = false
-                    openApp(itm.app, fs.combine(root, itm.path))
-                elseif itm.action == "shutdown" then
-                    running = false
-                end
-            elseif key == keys.backspace or key == keys.left then
-                if #menuStack > 0 then
-                    local last = table.remove(menuStack)
-                    currentMenu = last.menu
-                    selectedIdx = last.idx
-                    drawDesktop()
-                else
-                    menuOpen = false
-                    drawDesktop()
-                end
-            elseif key == keys.space then
+            elseif itm.path then
                 menuOpen = false
-                drawDesktop()
+                openApp(itm.app, fs.combine(root, itm.path))
+            elseif itm.action == "shutdown" then
+                running = false
             end
+        elseif key == keys.backspace or key == keys.left then
+            if #menuStack > 0 then
+                local last = table.remove(menuStack)
+                currentMenu = last.menu
+                selectedIdx = last.idx
+            else
+                menuOpen = false
+            end
+        elseif key == keys.space then
+            menuOpen = false
         end
     end
 end
@@ -927,7 +893,6 @@ local settingsPath = fs.combine(root, "settings.cfg")
 local selected, scroll = 1, 0
 local options = {
     { name = "Pocket Mode", key = "pocketMode", type = "toggle", value = false },
-    { name = "GPU Accel", key = "gpuAccel", type = "toggle", value = false },
     { name = "Check Update", key = "update", type = "action", value = "Press Enter" }
 }
 
@@ -1167,7 +1132,7 @@ end
 
 
     -- Placeholder folders
-    ["settings.cfg"] = "pocketMode = false\ngpuAccel = false",
+    ["settings.cfg"] = "pocketMode = false",
     ["libs/local/.keep"] = "",
     ["user/data/.keep"] = "",
     ["user/scripts/apps/.keep"] = "",
