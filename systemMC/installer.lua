@@ -422,7 +422,7 @@ local root = ...
 local selected, scroll = 1, 0
 local groups = {
     { title = "System Info", expanded = true, items = {
-        "SystemMC OS 0.0.5-a",
+        "SystemMC OS 0.1.0-b",
         "TempleOS-inspired TUI",
         "Alpha Release"
     }},
