@@ -1,7 +1,7 @@
 -- [[ SystemMC OS Installer v1.0 ]]
 -- Author: Apollo
 -- A premium TUI installer for ComputerCraft Floppy Disks.
-local _VERSION = "0.1.4-b"
+local _VERSION = "0.1.5-b"
 
 local files = {
     -- Root Bootloader
@@ -1172,6 +1172,21 @@ local function install(targetPath, isUpdate, doFormat)
         -- Inject version
         local finalContent = content:gsub("{{VERSION}}", _VERSION)
         
+        -- Special Handling: settings.cfg (Merge rather than overwrite)
+        if path == "settings.cfg" and fs.exists(fullPath) then
+            local f_old = fs.open(fullPath, "r")
+            local old_content = f_old.readAll()
+            f_old.close()
+            local merged = old_content
+            for line in finalContent:gmatch("[^\r\n]+") do
+                local key = line:match("^([^%s=]+)")
+                if key and not old_content:match("^" .. key .. "%s*=") and not old_content:match("\n" .. key .. "%s*=") then
+                    merged = merged .. "\n" .. line
+                end
+            end
+            finalContent = merged
+        end
+
         -- Progress Bar UI
         term.setBackgroundColor(colors.white)
         term.setTextColor(colors.black)
