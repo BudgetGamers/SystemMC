@@ -899,7 +899,8 @@ local tabs = {
         { name = "Pocket Mode", key = "pocketMode", type = "toggle", value = false }
     }},
     { name = "Updates", options = {
-        { name = "Check Update", key = "update", type = "action", value = " " }
+        { name = "Check Update", key = "update", type = "action", value = " " },
+        { name = "Force Update", key = "force_update", type = "action", value = " " }
     }},
     { name = "Notifications(WIP)", options = {} },
     { name = "Colors(WIP)", options = {} },
@@ -1052,35 +1053,52 @@ while true do
         if opt then
             if opt.type == "toggle" then
                 opt.value = not opt.value
-            elseif opt.key == "update" then
+            elseif opt.key == "update" or opt.key == "force_update" then
                 term.setCursorPos(1, 10)
                 term.setBackgroundColor(colors.black)
                 term.clear()
-                print("Checking for updates...")
+                print("Connecting to repository...")
                 local tempDir = fs.combine(root, "TEMP")
                 if not fs.exists(tempDir) then fs.makeDir(tempDir) end
                 local tempInstaller = fs.combine(tempDir, "installer.lua")
+                
                 shell.run("wget https://raw.githubusercontent.com/BudgetGamers/SystemMC/refs/heads/main/systemMC/installer.lua " .. tempInstaller)
                 
                 if fs.exists(tempInstaller) then
                     local f = fs.open(tempInstaller, "r")
                     local content = f.readAll()
                     f.close()
+                    
+                    local shouldUpdate = false
                     local newVer = content:match('local _VERSION = "(.-)"')
-                    if newVer and newVer ~= _VERSION then
-                        print("\nNew Version Available: " .. newVer)
-                        print("Update now? (y/n)")
+                    
+                    if opt.key == "force_update" then
+                        shouldUpdate = true
+                        print("\nForce update requested.")
+                    else
+                        if newVer and newVer ~= _VERSION then
+                            print("\nNew Version Available: " .. newVer)
+                            shouldUpdate = true
+                        else
+                            print("\nSystem is up to date.")
+                            sleep(1.5)
+                        end
+                    end
+                    
+                    if shouldUpdate then
+                        print("Run Installer now? (y/n)")
                         local _, char = os.pullEvent("char")
                         if char:lower() == "y" then
-                            print("Updating...")
+                            print("Launching Installer...")
                             shell.run(tempInstaller, "update", root)
                             os.reboot()
                         end
-                    else
-                        print("\nSystem is up to date.")
-                        sleep(1.5)
                     end
-                    fs.delete(tempDir)
+                    -- Only delete the file, not the folder
+                    fs.delete(tempInstaller)
+                else
+                    print("Download failed!")
+                    sleep(1.5)
                 end
             end
         end
@@ -1188,6 +1206,7 @@ end
     ["settings.cfg"] = "pocketMode = false",
     ["libs/local/.keep"] = "",
     ["user/data/.keep"] = "",
+    ["TEMP/.keep"] = "",
     ["user/scripts/apps/.keep"] = "",
     ["user/scripts/games/.keep"] = "",
     ["user/downloads/.keep"] = "",
