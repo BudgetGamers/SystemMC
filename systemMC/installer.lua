@@ -1020,7 +1020,7 @@ local function draw()
     term.setBackgroundColor(colors.blue)
     term.setTextColor(colors.white)
     term.clearLine()
-    term.write(" Arrows:Nav Enter:Act Q:Quit")
+    term.write(" Enter:Act Q:Quit")
 end
 
 loadSettings()
