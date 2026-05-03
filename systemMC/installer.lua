@@ -1,7 +1,7 @@
 -- [[ SystemMC OS Installer v1.0 ]]
 -- Author: Apollo
 -- A premium TUI installer for ComputerCraft Floppy Disks.
-local _VERSION = "0.1.7-b"
+local _VERSION = "0.1.8-b"
 
 local files = {
     -- Root Bootloader
@@ -32,7 +32,7 @@ log("Root detected: " .. root)
 
 local systemPaths = {
     "libs/rom", "libs/local", "scripts/systemMC", 
-    "scripts/apps", "user/apps", "user/games", "user/downloads", "scripts/etc"
+    "scripts/apps", "user/scripts", "user/scripts/apps", "user/scripts/games", "user/downloads", "scripts/etc"
 }
 
 local newPaths = {}
@@ -104,11 +104,10 @@ local function menuBar(w, isMenuOpen, pocketMode)
     term.write(dateStr)
 end
 
-local function drawStartMenu(x, y, menu, selected, subIndex)
-    local items = subIndex and menu[selected].items or menu
+local function drawStartMenu(x, y, items, selected)
     for i, entry in ipairs(items) do
         term.setCursorPos(x, y + i)
-        if (subIndex == i) or (not subIndex and i == selected) then
+        if i == selected then
             term.setBackgroundColor(colors.lightBlue)
             term.setTextColor(colors.white)
         else
@@ -175,10 +174,8 @@ local gui = require("gui")
 logger.setRoot(root)
 
 local w, h = term.getSize()
-local running = true
-local menuOpen = false
-local selectedApp = 1
-local subIndex = nil
+local selectedIdx = 1
+local menuStack = {}
 local settings = { pocketMode = false }
 
 local startMenu = {
@@ -193,43 +190,33 @@ local startMenu = {
         { name = "Download", app = "Download", path = "scripts/apps/download.lua" },
         { name = "Disk Usage", app = "Usage", path = "scripts/apps/disk_usage.lua" }
     }},
-    { name = "User Apps", items = {
-        { name = "Empty", action = "none" }
-    }}
+    { name = "User Apps", items = {} }
 }
 
-local function loadSettings()
-    local path = fs.combine(root, "settings.cfg")
-    if fs.exists(path) then
-        local f = fs.open(path, "r")
-        local content = f.readAll()
-        f.close()
-        for k, v in content:gmatch("([%w_]+)%s*=%s*([%w_]+)") do
-            settings[k] = (v == "true")
+local currentMenu = startMenu
+
+local function scanDir(path, relPath)
+    local items = {}
+    local fullPath = fs.combine(root, path)
+    if not fs.exists(fullPath) then return items end
+    local list = fs.list(fullPath)
+    for _, name in ipairs(list) do
+        local full = fs.combine(fullPath, name)
+        local rel = fs.combine(relPath, name)
+        if fs.isDir(full) then
+            local sub = scanDir(fs.combine(path, name), rel)
+            if #sub > 0 then table.insert(items, { name = name, items = sub }) end
+        elseif name:match("%.lua$") then
+            table.insert(items, { name = name:gsub("%.lua$", ""), app = name:gsub("%.lua$", ""), path = rel })
         end
     end
+    return items
 end
 
 local function scanUserApps()
-    local userApps = {}
-    local paths = { "user/apps", "user/games" }
-    for _, p in ipairs(paths) do
-        local full = fs.combine(root, p)
-        if fs.exists(full) and fs.isDir(full) then
-            for _, file in ipairs(fs.list(full)) do
-                local fPath = fs.combine(full, file)
-                if not fs.isDir(fPath) and file:match("%.lua$") then
-                    table.insert(userApps, { 
-                        name = file:gsub("%.lua$", ""), 
-                        app = file:gsub("%.lua$", ""), 
-                        path = fs.combine(p, file) 
-                    })
-                end
-            end
-        end
-    end
-    if #userApps == 0 then table.insert(userApps, { name = "Empty", action = "none" }) end
-    startMenu[3].items = userApps
+    local apps = scanDir("user/scripts", "user/scripts")
+    if #apps == 0 then table.insert(apps, { name = "Empty", action = "none" }) end
+    startMenu[3].items = apps
 end
 
 local function drawDesktop()
@@ -238,7 +225,6 @@ local function drawDesktop()
     term.setBackgroundColor(colors.black)
     term.setTextColor(colors.blue)
     term.clear()
-    -- Dark blue grid texture
     for i = 2, h do
         if i % 2 == 0 then
             term.setCursorPos(1, i)
@@ -247,64 +233,47 @@ local function drawDesktop()
     end
     gui.menuBar(w, menuOpen, settings.pocketMode)
     if menuOpen then
-        local itemsCount = subIndex and #startMenu[selectedApp].items or #startMenu
-        gui.drawStartMenu(1, 1, startMenu, selectedApp, subIndex)
+        gui.drawStartMenu(1, 1, currentMenu, selectedIdx)
     end
 end
-
-local function openApp(name, path)
-    logger.log("Opening App: " .. name, "OS")
-    -- Full screen window (below menu bar)
-    local appWin = window.create(term.current(), 1, 2, w, h - 1, true)
-    
-    local oldTerm = term.redirect(appWin)
-    shell.run(path, root)
-    term.redirect(oldTerm)
-    
-    menuOpen = false
-    drawDesktop()
-end
-
-drawDesktop()
-logger.log("Desktop Environment Ready", "OS")
 
 while running do
     drawDesktop()
     local event, key = os.pullEvent("key")
-    
     if not menuOpen then
         if key == keys.enter or key == keys.space then
             menuOpen = true
-            selectedApp = 1
-            subIndex = nil
+            selectedIdx = 1
+            menuStack = {}
+            currentMenu = startMenu
         end
     else
-        if not subIndex then
-            if key == keys.up then
-                selectedApp = selectedApp > 1 and selectedApp - 1 or #startMenu
-            elseif key == keys.down then
-                selectedApp = selectedApp < #startMenu and selectedApp + 1 or 1
-            elseif key == keys.enter or key == keys.right then
-                subIndex = 1
-            elseif key == keys.backspace or key == keys.left or key == keys.space then
+        if key == keys.up then
+            selectedIdx = selectedIdx > 1 and selectedIdx - 1 or #currentMenu
+        elseif key == keys.down then
+            selectedIdx = selectedIdx < #currentMenu and selectedIdx + 1 or 1
+        elseif key == keys.enter or key == keys.right then
+            local itm = currentMenu[selectedIdx]
+            if itm.items then
+                table.insert(menuStack, { menu = currentMenu, idx = selectedIdx })
+                currentMenu = itm.items
+                selectedIdx = 1
+            elseif itm.path then
+                menuOpen = false
+                openApp(itm.app, fs.combine(root, itm.path))
+            elseif itm.action == "shutdown" then
+                running = false
+            end
+        elseif key == keys.backspace or key == keys.left then
+            if #menuStack > 0 then
+                local last = table.remove(menuStack)
+                currentMenu = last.menu
+                selectedIdx = last.idx
+            else
                 menuOpen = false
             end
-        else
-            local items = startMenu[selectedApp].items
-            if key == keys.up then
-                subIndex = subIndex > 1 and subIndex - 1 or #items
-            elseif key == keys.down then
-                subIndex = subIndex < #items and subIndex + 1 or 1
-            elseif key == keys.left or key == keys.backspace then
-                subIndex = nil
-            elseif key == keys.enter then
-                local itm = items[subIndex]
-                if itm and itm.path then
-                    openApp(itm.app, fs.combine(root, itm.path))
-                elseif itm and itm.action == "shutdown" then
-                    running = false
-                end
-            end
+        elseif key == keys.space then
+            menuOpen = false
         end
     end
 end
@@ -1132,8 +1101,9 @@ end
     -- Placeholder folders
     ["settings.cfg"] = "pocketMode = false",
     ["libs/local/.keep"] = "",
-    ["user/apps/.keep"] = "",
-    ["user/games/.keep"] = "",
+    ["user/data/.keep"] = "",
+    ["user/scripts/apps/.keep"] = "",
+    ["user/scripts/games/.keep"] = "",
     ["user/downloads/.keep"] = "",
     ["scripts/etc/.keep"] = "",
 }
