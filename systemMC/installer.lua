@@ -596,6 +596,21 @@ local function findDrive()
     return nil, nil
 end
 
+local function minimize(content)
+    -- Remove multi-line comments
+    content = content:gsub("%-%-%[%[.-%]%]", "")
+    local lines = {}
+    for line in content:gmatch("[^\r\n]+") do
+        local trimmed = line:gsub("^%s+", ""):gsub("%s+$", "")
+        -- Keep lines that aren't empty and don't start with a comment
+        if #trimmed > 0 and not trimmed:match("^%-%-") then
+            -- Note: We avoid stripping end-of-line comments to prevent breaking strings containing '--'
+            table.insert(lines, trimmed)
+        end
+    end
+    return table.concat(lines, "\n")
+end
+
 local function install(isUpdate, doFormat)
     drawBackground()
     local title = doFormat and "Formatting & Installing..." or (isUpdate and "Updating SystemMC..." or "Installing SystemMC...")
@@ -609,6 +624,9 @@ local function install(isUpdate, doFormat)
         end
         sleep(0.5)
     end
+
+    centerText("Minimizing System Files...", 8, colors.white, colors.blue)
+    sleep(0.8)
 
     local total = 0
     for _ in pairs(files) do total = total + 1 end
@@ -637,7 +655,7 @@ local function install(isUpdate, doFormat)
         if not fs.exists(dir) then fs.makeDir(dir) end
         
         local f = fs.open(fullPath, "w")
-        f.write(content)
+        f.write(minimize(content))
         f.close()
         
         sleep(0.05)
