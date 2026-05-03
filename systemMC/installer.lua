@@ -1,6 +1,7 @@
 -- [[ SystemMC OS Installer v1.0 ]]
 -- Author: Apollo
 -- A premium TUI installer for ComputerCraft Floppy Disks.
+local _VERSION = "0.1.3-b"
 
 local files = {
     -- Root Bootloader
@@ -158,6 +159,7 @@ return { center = center }
 
     -- SystemMC Kernel (Desktop Manager)
     ["scripts/systemMC/kernel.lua"] = [[
+local _VERSION = "{{VERSION}}"
 local root = ...
 
 -- Ensure package.path includes our libs even if run directly
@@ -621,11 +623,12 @@ end
 
     -- Help App
     ["scripts/apps/help.lua"] = [[
+local _VERSION = "{{VERSION}}"
 local root = ...
 local selected, scroll = 1, 0
 local groups = {
     { title = "System Info", expanded = true, items = {
-        "SystemMC OS 0.1.2-b",
+        "SystemMC OS " .. _VERSION,
         "TempleOS-inspired TUI",
         "Alpha Release"
     }},
@@ -816,22 +819,21 @@ local function checkUpdate()
     local content = resp.readAll()
     resp.close()
     
-    local f = fs.open(tempPath, "w")
-    f.write(content)
-    f.close()
-    
-    local newVer = content:match('print%("SystemMC OS ([%d%.%-a-z]+)"%)')
+    local newVer = content:match('local _VERSION = "([%d%.%-a-z]+)"')
     local localVer = "0.0.0"
     local helpPath = fs.combine(root, "scripts/apps/help.lua")
     if fs.exists(helpPath) then
         local f = fs.open(helpPath, "r")
         local help = f.readAll()
         f.close()
-        localVer = help:match('print%("SystemMC OS ([%d%.%-a-z]+)"%)') or "0.0.0"
+        localVer = help:match('local _VERSION = "([%d%.%-a-z]+)"') or "0.0.0"
     end
     
     if newVer and newVer > localVer then
         opt.value = "New: " .. newVer
+        local f = fs.open(tempPath, "w")
+        f.write(content)
+        f.close()
         draw()
         term.setCursorPos(1, term.getSize())
         term.setBackgroundColor(colors.blue)
@@ -997,7 +999,7 @@ local function drawBackground()
     term.setTextColor(colors.white)
     term.setCursorPos(1, 1)
     term.clearLine()
-    term.write(" SYSTEMMC INSTALLER v1.0")
+    term.write(" SYSTEMMC INSTALLER v" .. _VERSION)
     term.setCursorPos(w - 10, 1)
     term.write(os.date("%H:%M:%S"))
 end
@@ -1077,6 +1079,9 @@ local function install(targetPath, isUpdate, doFormat)
         current = current + 1
         local fullPath = fs.combine(targetPath, path)
         
+        -- Inject version
+        local finalContent = content:gsub("{{VERSION}}", _VERSION)
+        
         -- Progress Bar UI
         term.setBackgroundColor(colors.white)
         term.setTextColor(colors.black)
@@ -1097,7 +1102,7 @@ local function install(targetPath, isUpdate, doFormat)
         if not fs.exists(dir) then fs.makeDir(dir) end
         
         local f = fs.open(fullPath, "w")
-        f.write(minimize(content))
+        f.write(minimize(finalContent))
         f.close()
         
         sleep(0.05)
