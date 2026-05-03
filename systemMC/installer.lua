@@ -1,7 +1,7 @@
 -- [[ SystemMC OS Installer v1.0 ]]
 -- Author: Apollo
 -- A premium TUI installer for ComputerCraft Floppy Disks.
-local _VERSION = "0.1.9-b"
+local _VERSION = "0.1.10-b"
 
 local files = {
     -- Root Bootloader
@@ -179,9 +179,14 @@ local gui = require("gui")
 logger.setRoot(root)
 
 local w, h = term.getSize()
+local running = true
+local menuOpen = false
 local selectedIdx = 1
 local menuStack = {}
 local settings = { pocketMode = false }
+
+-- Pre-declare functions for mutual visibility
+local scanDir, scanUserApps, loadSettings, drawDesktop, openApp
 
 local startMenu = {
     { name = "System", items = {
@@ -200,7 +205,7 @@ local startMenu = {
 
 local currentMenu = startMenu
 
-local function scanDir(path, relPath)
+scanDir = function(path, relPath)
     local items = {}
     local fullPath = fs.combine(root, path)
     if not fs.exists(fullPath) then return items end
@@ -218,16 +223,13 @@ local function scanDir(path, relPath)
     return items
 end
 
-local function scanUserApps()
+scanUserApps = function()
     local apps = scanDir("user/scripts", "user/scripts")
     if #apps == 0 then table.insert(apps, { name = "Empty", action = "none" }) end
     startMenu[3].items = apps
 end
 
-local running = true
-local menuOpen = false
-
-local function loadSettings()
+loadSettings = function()
     local path = fs.combine(root, "settings.cfg")
     if fs.exists(path) then
         local f = fs.open(path, "r")
@@ -239,7 +241,7 @@ local function loadSettings()
     end
 end
 
-local function drawDesktop()
+drawDesktop = function()
     scanUserApps()
     loadSettings()
     term.setBackgroundColor(colors.black)
@@ -257,7 +259,7 @@ local function drawDesktop()
     end
 end
 
-local function openApp(name, path)
+openApp = function(name, path)
     logger.log("Opening App: " .. name, "OS")
     local appWin = window.create(term.current(), 1, 2, w, h - 1, true)
     local oldTerm = term.redirect(appWin)
