@@ -419,28 +419,103 @@ end
     -- Help App
     ["scripts/apps/help.lua"] = [[
 local root = ...
-local win = term.current()
-term.setBackgroundColor(colors.gray)
-term.setTextColor(colors.white)
-term.clear()
-term.setCursorPos(1,1)
-print("SystemMC OS 0.0.5-a")
-print(" this is an alpha release expect bugs!")
-print("A TempleOS-inspired TUI.")
-print("\nHotkeys:")
-print(" Left/Right - Navigate")
-print(" Enter - Open Start Menu")
-print(" Ctrl+Q - Close App")
-print(" Explorer Hotkeys:")
-print(" Enter - Enter Folder / <<")
-print(" E - Edit File")
-print(" R - Run .lua File")
-print(" C - Pack Folder to .tar")
-print(" U - Unpack .tar File")
-print(" M - Mark for Move")
-print(" K - Drop Item Here")
-print("\nPress any key to close.")
-os.pullEvent("key")
+local selected, scroll = 1, 0
+local groups = {
+    { title = "System Info", expanded = true, items = {
+        "SystemMC OS 0.0.5-a",
+        "TempleOS-inspired TUI",
+        "Alpha Release"
+    }},
+    { title = "General Hotkeys", expanded = false, items = {
+        "Arrows  - Navigate Desktop",
+        "Enter   - Open Start Menu",
+        "Space   - Open Start Menu",
+        "Ctrl+Q  - Close Application"
+    }},
+    { title = "Explorer Hotkeys", expanded = false, items = {
+        "Enter   - Enter Folder / <<",
+        "E       - Edit File",
+        "R       - Run .lua File",
+        "C       - Pack Folder to .tar",
+        "U       - Unpack .tar File",
+        "M       - Mark for Move",
+        "K       - Drop Item Here",
+        "H       - Show Keybind Popup"
+    }}
+}
+
+local function getFlattened()
+    local flat = {}
+    for i, g in ipairs(groups) do
+        table.insert(flat, { type = "group", data = g })
+        if g.expanded then
+            for _, item in ipairs(g.items) do
+                table.insert(flat, { type = "item", data = item })
+            end
+        end
+    end
+    return flat
+end
+
+local function draw()
+    local w, h = term.getSize()
+    local maxVisible = h - 3
+    local flat = getFlattened()
+    
+    term.setBackgroundColor(colors.gray)
+    term.setTextColor(colors.white)
+    term.clear()
+    term.setCursorPos(1,1)
+    term.setBackgroundColor(colors.blue)
+    term.clearLine()
+    print(" Help & Documentation")
+    
+    if selected > #flat then selected = #flat end
+    if selected > scroll + maxVisible then scroll = selected - maxVisible
+    elseif selected <= scroll then scroll = selected - 1 end
+
+    for i = 1, maxVisible do
+        local idx = i + scroll
+        if flat[idx] then
+            local entry = flat[idx]
+            term.setCursorPos(1, 1 + i)
+            if idx == selected then
+                term.setBackgroundColor(colors.lightBlue)
+                term.setTextColor(colors.white)
+            else
+                term.setBackgroundColor(colors.gray)
+                term.setTextColor(colors.white)
+            end
+            
+            if entry.type == "group" then
+                local prefix = entry.data.expanded and "[-] " or "[+] "
+                term.write(" " .. prefix .. entry.data.title .. string.rep(" ", w - #entry.data.title - 6))
+            else
+                term.write("   " .. entry.data .. string.rep(" ", w - #entry.data - 4))
+            end
+        end
+    end
+    
+    term.setCursorPos(1, h)
+    term.setBackgroundColor(colors.blue)
+    term.setTextColor(colors.white)
+    term.clearLine()
+    term.write(" Arrows:Nav  Enter:Toggle  Q:Quit")
+end
+
+while true do
+    draw()
+    local _, k = os.pullEvent("key")
+    local flat = getFlattened()
+    if k == keys.up then selected = selected > 1 and selected - 1 or #flat
+    elseif k == keys.down then selected = selected < #flat and selected + 1 or 1
+    elseif k == keys.enter then
+        local entry = flat[selected]
+        if entry and entry.type == "group" then
+            entry.data.expanded = not entry.data.expanded
+        end
+    elseif k == keys.q then break end
+end
 ]],
 
     -- Settings App
