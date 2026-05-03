@@ -397,6 +397,34 @@ local function showHelp()
     os.pullEvent("key")
 end
 
+local function drawPopup(title, opts)
+    local w, h = term.getSize()
+    local win = window.create(term.current(), math.floor(w/2-8), math.floor(h/2-2), 17, #opts + 2)
+    local sel = 1
+    while true do
+        win.setBackgroundColor(colors.white)
+        win.setTextColor(colors.black)
+        win.clear()
+        win.setCursorPos(2, 1) win.write(title)
+        for i, o in ipairs(opts) do
+            win.setCursorPos(2, 1 + i)
+            if i == sel then
+                win.setBackgroundColor(colors.blue)
+                win.setTextColor(colors.white)
+            else
+                win.setBackgroundColor(colors.white)
+                win.setTextColor(colors.black)
+            end
+            win.write(" " .. o .. string.rep(" ", 15 - #o))
+        end
+        local _, k = os.pullEvent("key")
+        if k == keys.up then sel = sel > 1 and sel - 1 or #opts
+        elseif k == keys.down then sel = sel < #opts and sel + 1 or 1
+        elseif k == keys.enter then return opts[sel]
+        elseif k == keys.q then return "Cancel" end
+    end
+end
+
 while true do
     local list = fs.list(currentPath)
     if currentPath ~= "/" then table.insert(list, 1, "<<") end
@@ -439,16 +467,11 @@ while true do
         fs.move(moveSrc, fs.combine(currentPath, fs.getName(moveSrc)))
         moveSrc = nil
     elseif (k == keys.d or k == keys.delete) and item ~= "<<" then
-        term.setCursorPos(1, term.getSize())
-        term.setBackgroundColor(colors.red)
-        term.clearLine()
-        term.write(" Delete: [D] Trash  [Ctrl+D] Perm")
-        local _, subK = os.pullEvent("key")
-        if subK == keys.d then
+        local res = drawPopup("Delete Item?", {"Cancel", "Move to Trash", "Perm Delete"})
+        if res == "Move to Trash" then
             moveToTrash(fullPath)
-        elseif subK == keys.leftCtrl or subK == keys.rightCtrl then
-            local _, subK2 = os.pullEvent("key")
-            if subK2 == keys.d then fs.delete(fullPath) end
+        elseif res == "Perm Delete" then
+            fs.delete(fullPath)
         end
     elseif k == keys.n then
         term.setCursorPos(1, term.getSize())
@@ -489,6 +512,34 @@ local function saveIndex(index)
     local f = fs.open(indexPath, "w")
     f.write(textutils.serialize(index))
     f.close()
+end
+
+local function drawPopup(title, opts)
+    local w, h = term.getSize()
+    local win = window.create(term.current(), math.floor(w/2-8), math.floor(h/2-2), 17, #opts + 2)
+    local sel = 1
+    while true do
+        win.setBackgroundColor(colors.white)
+        win.setTextColor(colors.black)
+        win.clear()
+        win.setCursorPos(2, 1) win.write(title)
+        for i, o in ipairs(opts) do
+            win.setCursorPos(2, 1 + i)
+            if i == sel then
+                win.setBackgroundColor(colors.blue)
+                win.setTextColor(colors.white)
+            else
+                win.setBackgroundColor(colors.white)
+                win.setTextColor(colors.black)
+            end
+            win.write(" " .. o .. string.rep(" ", 15 - #o))
+        end
+        local _, k = os.pullEvent("key")
+        if k == keys.up then sel = sel > 1 and sel - 1 or #opts
+        elseif k == keys.down then sel = sel < #opts and sel + 1 or 1
+        elseif k == keys.enter then return opts[sel]
+        elseif k == keys.q then return "Cancel" end
+    end
 end
 
 local function draw(items)
@@ -547,10 +598,8 @@ while true do
         index[name] = nil
         saveIndex(index)
     elseif k == keys.c then
-        term.setCursorPos(1, term.getSize())
-        term.write("Clear all? (Y/N): ")
-        local _, char = os.pullEvent("char")
-        if char == "y" then
+        local res = drawPopup("Clear Trash?", {"Cancel", "Clear All"})
+        if res == "Clear All" then
             fs.delete(trashDir)
             fs.delete(indexPath)
             selected = 1
@@ -565,7 +614,7 @@ local root = ...
 local selected, scroll = 1, 0
 local groups = {
     { title = "System Info", expanded = true, items = {
-        "SystemMC OS 0.1.0-b",
+        "SystemMC OS 0.1.1-b",
         "TempleOS-inspired TUI",
         "Alpha Release"
     }},
