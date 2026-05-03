@@ -1,7 +1,7 @@
 -- [[ SystemMC OS Installer v1.0 ]]
 -- Author: Apollo
 -- A premium TUI installer for ComputerCraft Floppy Disks.
-local _VERSION = "0.1.3-b"
+local _VERSION = "0.1.4-b"
 
 local files = {
     -- Root Bootloader
@@ -105,7 +105,7 @@ local function menuBar(w, isMenuOpen, pocketMode)
 end
 
 local function drawStartMenu(x, y, selected)
-    local apps = {"1. Explorer  ", "2. Settings  ", "3. Disk Usage", "4. Trash      ", "5. About      ", "6. Shutdown   "}
+    local apps = {"1. Explorer  ", "2. Settings  ", "3. Disk Usage", "4. Trash     ", "5. Download  ", "6. About     ", "7. Shutdown  "}
     for i, app in ipairs(apps) do
         term.setCursorPos(x, y + i)
         if i == selected then
@@ -235,10 +235,10 @@ while running do
         end
     else
         if key == keys.up then
-            selectedApp = selectedApp > 1 and selectedApp - 1 or 6
+            selectedApp = selectedApp > 1 and selectedApp - 1 or 7
             drawDesktop()
         elseif key == keys.down then
-            selectedApp = selectedApp < 6 and selectedApp + 1 or 1
+            selectedApp = selectedApp < 7 and selectedApp + 1 or 1
             drawDesktop()
         elseif key == keys.enter then
             if selectedApp == 1 then
@@ -250,8 +250,10 @@ while running do
             elseif selectedApp == 4 then
                 openApp("Trash", fs.combine(root, "scripts/apps/trash.lua"))
             elseif selectedApp == 5 then
-                openApp("About", fs.combine(root, "scripts/apps/help.lua"))
+                openApp("Download", fs.combine(root, "scripts/apps/download.lua"))
             elseif selectedApp == 6 then
+                openApp("About", fs.combine(root, "scripts/apps/help.lua"))
+            elseif selectedApp == 7 then
                 term.setBackgroundColor(colors.black)
                 term.clear()
                 term.setCursorPos(1, 1)
@@ -621,6 +623,93 @@ while true do
 end
 ]],
 
+    -- Download App
+    ["scripts/apps/download.lua"] = [[
+local root = ...
+local function drawPopup(title, opts)
+    local w, h = term.getSize()
+    local win = window.create(term.current(), math.floor(w/2-8), math.floor(h/2-2), 17, #opts + 2)
+    local sel = 1
+    while true do
+        win.setBackgroundColor(colors.white)
+        win.setTextColor(colors.black)
+        win.clear()
+        win.setCursorPos(2, 1) win.write(title)
+        for i, o in ipairs(opts) do
+            win.setCursorPos(2, 1 + i)
+            if i == sel then
+                win.setBackgroundColor(colors.blue)
+                win.setTextColor(colors.white)
+            else
+                win.setBackgroundColor(colors.white)
+                win.setTextColor(colors.black)
+            end
+            win.write(" " .. o .. string.rep(" ", 15 - #o))
+        end
+        local _, k = os.pullEvent("key")
+        if k == keys.up then sel = sel > 1 and sel - 1 or #opts
+        elseif k == keys.down then sel = sel < #opts and sel + 1 or 1
+        elseif k == keys.enter then return opts[sel]
+        elseif k == keys.q then return "Cancel" end
+    end
+end
+
+local function drawInputPopup(title)
+    local w, h = term.getSize()
+    local win = window.create(term.current(), math.floor(w/2-10), math.floor(h/2-2), 21, 4)
+    win.setBackgroundColor(colors.white)
+    win.setTextColor(colors.black)
+    win.clear()
+    win.setCursorPos(2, 1)
+    win.write(title)
+    win.setCursorPos(2, 2)
+    win.setBackgroundColor(colors.gray)
+    win.setTextColor(colors.white)
+    win.write(string.rep(" ", 19))
+    win.setCursorPos(2, 2)
+    local old = term.redirect(win)
+    local input = read()
+    term.redirect(old)
+    return input
+end
+
+local function getFilename(url)
+    return url:match("^.*/([^/?]+)") or "downloaded_file"
+end
+
+while true do
+    term.setBackgroundColor(colors.gray)
+    term.clear()
+    local res = drawPopup("Download From", {"Web (URL)", "PasteBin", "Quit"})
+    if res == "Web (URL)" then
+        local url = drawInputPopup("Enter URL:")
+        if url ~= "" then
+            local name = drawInputPopup("Name (Optional):")
+            if name == "" then name = getFilename(url) end
+            term.setBackgroundColor(colors.black)
+            term.clear()
+            term.setCursorPos(1,1)
+            shell.run("wget", url, name)
+            print("\nPress any key...")
+            os.pullEvent("key")
+        end
+    elseif res == "PasteBin" then
+        local code = drawInputPopup("Enter Code:")
+        if code ~= "" then
+            local name = drawInputPopup("Enter Filename:")
+            if name ~= "" then
+                term.setBackgroundColor(colors.black)
+                term.clear()
+                term.setCursorPos(1,1)
+                shell.run("pastebin", "get", code, name)
+                print("\nPress any key...")
+                os.pullEvent("key")
+            end
+        end
+    elseif res == "Quit" or res == "Cancel" then break end
+end
+]],
+
     -- Help App
     ["scripts/apps/help.lua"] = [[
 local _VERSION = "{{VERSION}}"
@@ -630,13 +719,14 @@ local groups = {
     { title = "System Info", expanded = true, items = {
         "SystemMC OS " .. _VERSION,
         "TempleOS-inspired TUI",
-        "Alpha Release"
+        "Beta Release"
     }},
     { title = "General Hotkeys", expanded = false, items = {
         "Arrows  - Navigate Desktop",
         "Enter   - Open Start Menu",
         "Space   - Open Start Menu",
-        "Ctrl+Q  - Close Application"
+        "Ctrl+Q  - Close Application",
+        "System  - Download Manager Incl."
     }},
     { title = "Explorer Hotkeys", expanded = false, items = {
         "Enter   - Enter Folder / <<",
