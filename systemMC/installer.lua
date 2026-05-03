@@ -104,7 +104,7 @@ local function menuBar(w, isMenuOpen, pocketMode)
 end
 
 local function drawStartMenu(x, y, selected)
-    local apps = {"1. Explorer  ", "2. Settings  ", "3. Disk Usage", "4. About      ", "5. Shutdown   "}
+    local apps = {"1. Explorer  ", "2. Settings  ", "3. Disk Usage", "4. Trash      ", "5. About      ", "6. Shutdown   "}
     for i, app in ipairs(apps) do
         term.setCursorPos(x, y + i)
         if i == selected then
@@ -233,10 +233,10 @@ while running do
         end
     else
         if key == keys.up then
-            selectedApp = selectedApp > 1 and selectedApp - 1 or 5
+            selectedApp = selectedApp > 1 and selectedApp - 1 or 6
             drawDesktop()
         elseif key == keys.down then
-            selectedApp = selectedApp < 5 and selectedApp + 1 or 1
+            selectedApp = selectedApp < 6 and selectedApp + 1 or 1
             drawDesktop()
         elseif key == keys.enter then
             if selectedApp == 1 then
@@ -246,8 +246,10 @@ while running do
             elseif selectedApp == 3 then
                 openApp("Usage", fs.combine(root, "scripts/apps/disk_usage.lua"))
             elseif selectedApp == 4 then
-                openApp("About", fs.combine(root, "scripts/apps/help.lua"))
+                openApp("Trash", fs.combine(root, "scripts/apps/trash.lua"))
             elseif selectedApp == 5 then
+                openApp("About", fs.combine(root, "scripts/apps/help.lua"))
+            elseif selectedApp == 6 then
                 term.setBackgroundColor(colors.black)
                 term.clear()
                 term.setCursorPos(1, 1)
@@ -269,6 +271,30 @@ local root = ...
 local currentPath = root
 local selected, scroll = 1, 0
 local moveSrc = nil
+
+local function moveToTrash(path)
+    local trashDir = fs.combine(root, "scripts/etc/trash")
+    local indexPath = fs.combine(root, "scripts/etc/trash_index")
+    if not fs.exists(trashDir) then fs.makeDir(trashDir) end
+    local index = {}
+    if fs.exists(indexPath) then
+        local f = fs.open(indexPath, "r")
+        index = textutils.unserialize(f.readAll()) or {}
+        f.close()
+    end
+    local name = fs.getName(path)
+    local trashName = name
+    local i = 1
+    while fs.exists(fs.combine(trashDir, trashName)) do
+        trashName = name .. "_" .. i
+        i = i + 1
+    end
+    index[trashName] = path
+    fs.move(path, fs.combine(trashDir, trashName))
+    local f = fs.open(indexPath, "w")
+    f.write(textutils.serialize(index))
+    f.close()
+end
 
 local function pack(dir, output)
     local files = {}
@@ -412,8 +438,18 @@ while true do
     elseif k == keys.k and moveSrc then
         fs.move(moveSrc, fs.combine(currentPath, fs.getName(moveSrc)))
         moveSrc = nil
-    elseif k == keys.d and item ~= "<<" then
-        fs.delete(fullPath)
+    elseif (k == keys.d or k == keys.delete) and item ~= "<<" then
+        term.setCursorPos(1, term.getSize())
+        term.setBackgroundColor(colors.red)
+        term.clearLine()
+        term.write(" Delete: [D] Trash  [Ctrl+D] Perm")
+        local _, subK = os.pullEvent("key")
+        if subK == keys.d then
+            moveToTrash(fullPath)
+        elseif subK == keys.leftCtrl or subK == keys.rightCtrl then
+            local _, subK2 = os.pullEvent("key")
+            if subK2 == keys.d then fs.delete(fullPath) end
+        end
     elseif k == keys.n then
         term.setCursorPos(1, term.getSize())
         term.setBackgroundColor(colors.blue)
@@ -430,6 +466,95 @@ while true do
         end
     elseif k == keys.h then
         showHelp()
+    elseif k == keys.q then break end
+end
+]],
+
+    -- Trash App
+    ["scripts/apps/trash.lua"] = [[
+local root = ...
+local trashDir = fs.combine(root, "scripts/etc/trash")
+local indexPath = fs.combine(root, "scripts/etc/trash_index")
+local selected, scroll = 1, 0
+
+local function loadIndex()
+    if not fs.exists(indexPath) then return {} end
+    local f = fs.open(indexPath, "r")
+    local data = textutils.unserialize(f.readAll())
+    f.close()
+    return data or {}
+end
+
+local function saveIndex(index)
+    local f = fs.open(indexPath, "w")
+    f.write(textutils.serialize(index))
+    f.close()
+end
+
+local function draw(items)
+    local w, h = term.getSize()
+    local maxVisible = h - 3
+    term.setBackgroundColor(colors.gray)
+    term.setTextColor(colors.white)
+    term.clear()
+    term.setCursorPos(1,1)
+    term.setBackgroundColor(colors.red)
+    term.clearLine()
+    print(" Trash Manager")
+    
+    if selected > scroll + maxVisible then scroll = selected - maxVisible
+    elseif selected <= scroll then scroll = selected - 1 end
+
+    for i = 1, maxVisible do
+        local idx = i + scroll
+        if items[idx] then
+            term.setCursorPos(1, 1 + i)
+            if idx == selected then
+                term.setBackgroundColor(colors.lightBlue)
+            else
+                term.setBackgroundColor(colors.gray)
+            end
+            local item = items[idx]
+            term.write(" " .. item .. string.rep(" ", w - #item - 1))
+        end
+    end
+    term.setCursorPos(1, h)
+    term.setBackgroundColor(colors.red)
+    term.clearLine()
+    term.write(" R:Restore  C:Clear Trash  Q:Quit")
+end
+
+while true do
+    local index = loadIndex()
+    local items = {}
+    for k in pairs(index) do table.insert(items, k) end
+    table.sort(items)
+    draw(items)
+    if #items == 0 then
+        term.setCursorPos(w/2-5, h/2)
+        print("Trash is empty")
+    end
+    
+    local _, k = os.pullEvent("key")
+    if k == keys.up then selected = selected > 1 and selected - 1 or #items
+    elseif k == keys.down then selected = selected < #items and selected + 1 or 1
+    elseif k == keys.r and #items > 0 then
+        local name = items[selected]
+        local orig = index[name]
+        local dir = fs.getDir(orig)
+        if not fs.exists(dir) then fs.makeDir(dir) end
+        fs.move(fs.combine(trashDir, name), orig)
+        index[name] = nil
+        saveIndex(index)
+    elseif k == keys.c then
+        term.setCursorPos(1, term.getSize())
+        term.write("Clear all? (Y/N): ")
+        local _, char = os.pullEvent("char")
+        if char == "y" then
+            fs.delete(trashDir)
+            fs.delete(indexPath)
+            selected = 1
+        end
     elseif k == keys.q then break end
 end
 ]],
@@ -460,7 +585,8 @@ local groups = {
         "K       - Drop Item Here",
         "H       - Show Keybind Popup",
         "N       - New File/Folder",
-        "D       - Delete Item"
+        "D       - Delete (to Trash)",
+        "Ctrl+D  - Permanent Delete"
     }}
 }
 
