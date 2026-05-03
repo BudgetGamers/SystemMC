@@ -347,7 +347,26 @@ local function draw(list)
     term.setBackgroundColor(colors.blue)
     term.setTextColor(colors.white)
     term.clearLine()
-    term.write(" E:Edit R:Run C:Pack U:Unpack M:Move K:Drop")
+    term.write(" Arrows:Nav  H:Help  Q:Quit")
+end
+
+local function showHelp()
+    local w, h = term.getSize()
+    local helpWin = window.create(term.current(), math.floor(w/2-10), math.floor(h/2-6), 21, 11)
+    helpWin.setBackgroundColor(colors.white)
+    helpWin.setTextColor(colors.black)
+    helpWin.clear()
+    local function writeAt(x, y, txt) helpWin.setCursorPos(x, y) helpWin.write(txt) end
+    writeAt(2, 2, "Explorer Hotkeys")
+    writeAt(2, 3, string.rep("-", 17))
+    writeAt(2, 4, "E: Edit File")
+    writeAt(2, 5, "R: Run .lua")
+    writeAt(2, 6, "C: Pack Folder")
+    writeAt(2, 7, "U: Unpack .tar")
+    writeAt(2, 8, "M: Move Item")
+    writeAt(2, 9, "K: Drop Item")
+    writeAt(2, 11, "Any key to close")
+    os.pullEvent("key")
 end
 
 while true do
@@ -391,6 +410,8 @@ while true do
     elseif k == keys.k and moveSrc then
         fs.move(moveSrc, fs.combine(currentPath, fs.getName(moveSrc)))
         moveSrc = nil
+    elseif k == keys.h then
+        showHelp()
     elseif k == keys.q then break end
 end
 ]],
