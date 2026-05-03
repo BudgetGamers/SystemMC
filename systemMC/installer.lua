@@ -1,7 +1,7 @@
 -- [[ SystemMC OS Installer v1.0 ]]
 -- Author: Apollo
 -- A premium TUI installer for ComputerCraft Floppy Disks.
-local _VERSION = "0.1.8-b"
+local _VERSION = "0.1.9-b"
 
 local files = {
     -- Root Bootloader
@@ -239,16 +239,6 @@ local function loadSettings()
     end
 end
 
-local function openApp(name, path)
-    logger.log("Opening App: " .. name, "OS")
-    local appWin = window.create(term.current(), 1, 2, w, h - 1, true)
-    local oldTerm = term.redirect(appWin)
-    shell.run(path, root)
-    term.redirect(oldTerm)
-    menuOpen = false
-    drawDesktop()
-end
-
 local function drawDesktop()
     scanUserApps()
     loadSettings()
@@ -265,6 +255,16 @@ local function drawDesktop()
     if menuOpen then
         gui.drawStartMenu(1, 1, currentMenu, selectedIdx)
     end
+end
+
+local function openApp(name, path)
+    logger.log("Opening App: " .. name, "OS")
+    local appWin = window.create(term.current(), 1, 2, w, h - 1, true)
+    local oldTerm = term.redirect(appWin)
+    shell.run(path, root)
+    term.redirect(oldTerm)
+    menuOpen = false
+    drawDesktop()
 end
 
 while running do
