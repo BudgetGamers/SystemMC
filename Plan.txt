@@ -1,0 +1,2 @@
+Work on systemMC untill it is more or less bug free then move to the Bios.
+GEMINI IGNORE THIS FILE.
