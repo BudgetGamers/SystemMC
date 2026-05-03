@@ -1,7 +1,7 @@
 -- [[ SystemMC OS Installer v1.0 ]]
 -- Author: Apollo
 -- A premium TUI installer for ComputerCraft Floppy Disks.
-local _VERSION = "0.1.11-b"
+local _VERSION = "0.1.12-b"
 
 local files = {
     -- Root Bootloader
@@ -250,8 +250,8 @@ loadSettings = function()
 end
 
 drawDesktop = function(partial)
-    loadSettings()
     if not partial or not settings.gpuAccel then
+        loadSettings()
         term.setBackgroundColor(colors.black)
         term.setTextColor(colors.blue)
         term.clear()
@@ -294,6 +294,9 @@ while running do
     if event == "timer" and p1 == clockTimer then
         drawDesktop(true) -- Partial update
         clockTimer = os.startTimer(1)
+    elseif event == "term_resize" or event == "monitor_touch" or event == "mouse_click" then
+        w, h = term.getSize()
+        drawDesktop() -- Full refresh
     elseif event == "key" then
         local key = p1
         if not menuOpen then
