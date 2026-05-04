@@ -1,7 +1,7 @@
 -- [[ SystemMC OS Installer v1.0 ]]
 -- Author: Apollo
 -- A premium TUI installer for ComputerCraft Floppy Disks.
-local _VERSION = "0.1.19-b"
+local _VERSION = "0.1.20-b"
 
 local files = {
     -- Root Bootloader
@@ -449,7 +449,8 @@ local function draw(list)
     term.setCursorPos(1,1)
     term.setBackgroundColor(colors.blue)
     term.clearLine()
-    print(" Explorer: " .. currentPath)
+    local isArchive = currentPath:match("%.tar$")
+    print(" Explorer: " .. currentPath .. (isArchive and " (RO)" or ""))
     term.setBackgroundColor(colors.gray)
     
     if selected > scroll + maxVisible then scroll = selected - maxVisible
@@ -511,8 +512,21 @@ end
 -- Using gui.drawInputPopup
 
 while true do
-    local list = fs.list(currentPath)
-    if currentPath ~= "/" then table.insert(list, 1, "<<") end
+    local list = {}
+    local isArchive = currentPath:match("%.tar$")
+    if isArchive then
+        local f = fs.open(currentPath, "r")
+        local data = f.readAll()
+        f.close()
+        local files = textutils.unserialize(data or "{}") or {}
+        for p in pairs(files) do table.insert(list, p) end
+        table.insert(list, 1, "<<")
+        table.sort(list, function(a, b) if a == "<<" then return true end if b == "<<" then return false end return a < b end)
+    else
+        list = fs.list(currentPath)
+        if currentPath ~= "/" then table.insert(list, 1, "<<") end
+    end
+    
     draw(list)
     local e, k = os.pullEvent("key")
     local item = list[selected]
@@ -523,39 +537,37 @@ while true do
         if item == "<<" then
             currentPath = fs.getDir(currentPath)
             selected, scroll = 1, 0
-        elseif fs.isDir(fullPath) then
+        elseif fs.isDir(fullPath) or (not isArchive and fullPath:match("%.tar$")) then
             currentPath = fullPath
             selected, scroll = 1, 0
         end
-    elseif k == keys.e and not fs.isDir(fullPath) then
+    elseif k == keys.e and not fs.isDir(fullPath) and not isArchive then
         sleep(0.05)
         shell.run("edit", fullPath)
-    elseif k == keys.r and not fs.isDir(fullPath) and item:match("%.lua$") then
+    elseif k == keys.r and not fs.isDir(fullPath) and item:match("%.lua$") and not isArchive then
         term.setBackgroundColor(colors.black)
         term.clear()
         term.setCursorPos(1,1)
         shell.run(fullPath)
         print("\nPress any key...")
         os.pullEvent("key")
-    elseif k == keys.c and fs.isDir(fullPath) and item ~= "<<" then
-        local out = gui.drawInputPopup("Pack name:")
-        if out ~= "" then pack(fullPath, fs.combine(currentPath, out .. ".tar")) end
-    elseif k == keys.u and not fs.isDir(fullPath) and item:match("%.tar$") then
-        local out = gui.drawInputPopup("Folder name:")
-        if out ~= "" then unpack(fullPath, fs.combine(currentPath, out)) end
-    elseif k == keys.m and item ~= "<<" then
+    elseif k == keys.c and fs.isDir(fullPath) and item ~= "<<" and not isArchive then
+        pack(fullPath, fullPath .. ".tar")
+    elseif k == keys.u and not fs.isDir(fullPath) and item:match("%.tar$") and not isArchive then
+        unpack(fullPath, fullPath:gsub("%.tar$", ""))
+    elseif k == keys.m and item ~= "<<" and not isArchive then
         moveSrc = fullPath
-    elseif k == keys.k and moveSrc then
+    elseif k == keys.k and moveSrc and not isArchive then
         fs.move(moveSrc, fs.combine(currentPath, fs.getName(moveSrc)))
         moveSrc = nil
-    elseif (k == keys.d or k == keys.delete) and item ~= "<<" then
+    elseif (k == keys.d or k == keys.delete) and item ~= "<<" and not isArchive then
         local res = gui.drawPopup("Delete Item?", {"Cancel", "Move to Trash", "Perm Delete"})
         if res == "Move to Trash" then
             moveToTrash(fullPath)
         elseif res == "Perm Delete" then
             fs.delete(fullPath)
         end
-    elseif k == keys.n then
+    elseif k == keys.n and not isArchive then
         local name = gui.drawInputPopup("Name (/dir):")
         if name ~= "" then
             if name:sub(1,1) == "/" then
