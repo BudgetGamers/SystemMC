@@ -1,7 +1,7 @@
 -- [[ SystemMC OS Installer v1.0 ]]
 -- Author: Apollo
 -- A premium TUI installer for ComputerCraft Floppy Disks.
-local _VERSION = "0.1.18-b"
+local _VERSION = "0.1.19-b"
 
 local files = {
     -- Root Bootloader
@@ -366,6 +366,16 @@ end
     -- File Explorer App
     ["scripts/apps/explorer.lua"] = [[
 local root = ...
+if root then
+    local paths = { "libs/rom", "libs/local", "scripts/systemMC" }
+    local pStr = ""
+    for _, p in ipairs(paths) do
+        local full = fs.combine(root, p)
+        if not full:match("^/") then full = "/" .. full end
+        pStr = pStr .. full .. "/?.lua;" .. full .. "/?/init.lua;"
+    end
+    package.path = pStr .. package.path
+end
 local gui = require("gui")
 local currentPath = root
 local selected, scroll = 1, 0
@@ -564,6 +574,17 @@ end
     -- Trash App
     ["scripts/apps/trash.lua"] = [[
 local root = ...
+if root then
+    local paths = { "libs/rom", "libs/local", "scripts/systemMC" }
+    local pStr = ""
+    for _, p in ipairs(paths) do
+        local full = fs.combine(root, p)
+        if not full:match("^/") then full = "/" .. full end
+        pStr = pStr .. full .. "/?.lua;" .. full .. "/?/init.lua;"
+    end
+    package.path = pStr .. package.path
+end
+local gui = require("gui")
 local trashDir = fs.combine(root, "scripts/etc/trash")
 local indexPath = fs.combine(root, "scripts/etc/trash_index")
 local selected, scroll = 1, 0
@@ -582,33 +603,7 @@ local function saveIndex(index)
     f.close()
 end
 
-local function drawPopup(title, opts)
-    local w, h = term.getSize()
-    local win = window.create(term.current(), math.floor(w/2-8), math.floor(h/2-2), 17, #opts + 2)
-    local sel = 1
-    while true do
-        win.setBackgroundColor(colors.white)
-        win.setTextColor(colors.black)
-        win.clear()
-        win.setCursorPos(2, 1) win.write(title)
-        for i, o in ipairs(opts) do
-            win.setCursorPos(2, 1 + i)
-            if i == sel then
-                win.setBackgroundColor(colors.blue)
-                win.setTextColor(colors.white)
-            else
-                win.setBackgroundColor(colors.white)
-                win.setTextColor(colors.black)
-            end
-            win.write(" " .. o .. string.rep(" ", 15 - #o))
-        end
-        local _, k = os.pullEvent("key")
-        if k == keys.up then sel = sel > 1 and sel - 1 or #opts
-        elseif k == keys.down then sel = sel < #opts and sel + 1 or 1
-        elseif k == keys.enter then return opts[sel]
-        elseif k == keys.q then return "Cancel" end
-    end
-end
+-- Using gui.drawPopup
 
 local function draw(items)
     local w, h = term.getSize()
@@ -666,7 +661,7 @@ while true do
         index[name] = nil
         saveIndex(index)
     elseif k == keys.c then
-        local res = drawPopup("Clear Trash?", {"Cancel", "Clear All"})
+        local res = gui.drawPopup("Clear Trash?", {"Cancel", "Clear All"})
         if res == "Clear All" then
             fs.delete(trashDir)
             fs.delete(indexPath)
@@ -679,6 +674,16 @@ end
     -- Download App
     ["scripts/apps/download.lua"] = [[
 local root = ...
+if root then
+    local paths = { "libs/rom", "libs/local", "scripts/systemMC" }
+    local pStr = ""
+    for _, p in ipairs(paths) do
+        local full = fs.combine(root, p)
+        if not full:match("^/") then full = "/" .. full end
+        pStr = pStr .. full .. "/?.lua;" .. full .. "/?/init.lua;"
+    end
+    package.path = pStr .. package.path
+end
 local gui = require("gui")
 -- Using gui.drawPopup
 
@@ -856,6 +861,17 @@ end
     ["scripts/apps/settings.lua"] = [[
 local _VERSION = "{{VERSION}}"
 local root = ...
+if root then
+    local paths = { "libs/rom", "libs/local", "scripts/systemMC" }
+    local pStr = ""
+    for _, p in ipairs(paths) do
+        local full = fs.combine(root, p)
+        if not full:match("^/") then full = "/" .. full end
+        pStr = pStr .. full .. "/?.lua;" .. full .. "/?/init.lua;"
+    end
+    package.path = pStr .. package.path
+end
+local gui = require("gui")
 local selected = 1
 local currentTab = 1
 local tabScroll = 0
