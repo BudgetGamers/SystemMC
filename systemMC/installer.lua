@@ -1,7 +1,7 @@
 -- [[ SystemMC OS Installer v1.0 ]]
 -- Author: Apollo
 -- A premium TUI installer for ComputerCraft Floppy Disks.
-local _VERSION = "0.1.16-b"
+local _VERSION = "0.1.17-b"
 
 local files = {
     -- Root Bootloader
@@ -119,7 +119,27 @@ local function drawStartMenu(x, y, items, selected)
     end
 end
 
-return { drawBox = drawBox, menuBar = menuBar, drawStartMenu = drawStartMenu }
+local function drawInputPopup(title)
+    sleep(0.05) -- Anti-ghosting delay
+    local w, h = term.getSize()
+    local win = window.create(term.current(), math.floor(w/2-10), math.floor(h/2-2), 21, 4)
+    win.setBackgroundColor(colors.white)
+    win.setTextColor(colors.black)
+    win.clear()
+    win.setCursorPos(2, 1)
+    win.write(title)
+    win.setCursorPos(2, 2)
+    win.setBackgroundColor(colors.gray)
+    win.setTextColor(colors.white)
+    win.write(string.rep(" ", 19))
+    win.setCursorPos(2, 2)
+    local old = term.redirect(win)
+    local input = read()
+    term.redirect(old)
+    return input
+end
+
+return { drawBox = drawBox, menuBar = menuBar, drawStartMenu = drawStartMenu, drawInputPopup = drawInputPopup }
 ]],
 
     -- Logger Library
@@ -447,6 +467,7 @@ local function showHelp()
 end
 
 local function drawPopup(title, opts)
+    sleep(0.05) -- Anti-ghosting delay
     local w, h = term.getSize()
     local win = window.create(term.current(), math.floor(w/2-8), math.floor(h/2-2), 17, #opts + 2)
     local sel = 1
@@ -511,6 +532,7 @@ while true do
             selected, scroll = 1, 0
         end
     elseif k == keys.e and not fs.isDir(fullPath) then
+        sleep(0.05)
         shell.run("edit", fullPath)
     elseif k == keys.r and not fs.isDir(fullPath) and item:match("%.lua$") then
         term.setBackgroundColor(colors.black)
@@ -520,10 +542,10 @@ while true do
         print("\nPress any key...")
         os.pullEvent("key")
     elseif k == keys.c and fs.isDir(fullPath) and item ~= "<<" then
-        local out = drawInputPopup("Pack name:")
+        local out = gui.drawInputPopup("Pack name:")
         if out ~= "" then pack(fullPath, fs.combine(currentPath, out .. ".tar")) end
     elseif k == keys.u and not fs.isDir(fullPath) and item:match("%.tar$") then
-        local out = drawInputPopup("Folder name:")
+        local out = gui.drawInputPopup("Folder name:")
         if out ~= "" then unpack(fullPath, fs.combine(currentPath, out)) end
     elseif k == keys.m and item ~= "<<" then
         moveSrc = fullPath
@@ -531,14 +553,14 @@ while true do
         fs.move(moveSrc, fs.combine(currentPath, fs.getName(moveSrc)))
         moveSrc = nil
     elseif (k == keys.d or k == keys.delete) and item ~= "<<" then
-        local res = drawPopup("Delete Item?", {"Cancel", "Move to Trash", "Perm Delete"})
+        local res = gui.drawPopup and gui.drawPopup("Delete Item?", {"Cancel", "Move to Trash", "Perm Delete"}) or drawPopup("Delete Item?", {"Cancel", "Move to Trash", "Perm Delete"})
         if res == "Move to Trash" then
             moveToTrash(fullPath)
         elseif res == "Perm Delete" then
             fs.delete(fullPath)
         end
     elseif k == keys.n then
-        local name = drawInputPopup("Name (/dir):")
+        local name = gui.drawInputPopup("Name (/dir):")
         if name ~= "" then
             if name:sub(1,1) == "/" then
                 fs.makeDir(fs.combine(currentPath, name:sub(2)))
@@ -699,24 +721,7 @@ local function drawPopup(title, opts)
     end
 end
 
-local function drawInputPopup(title)
-    local w, h = term.getSize()
-    local win = window.create(term.current(), math.floor(w/2-10), math.floor(h/2-2), 21, 4)
-    win.setBackgroundColor(colors.white)
-    win.setTextColor(colors.black)
-    win.clear()
-    win.setCursorPos(2, 1)
-    win.write(title)
-    win.setCursorPos(2, 2)
-    win.setBackgroundColor(colors.gray)
-    win.setTextColor(colors.white)
-    win.write(string.rep(" ", 19))
-    win.setCursorPos(2, 2)
-    local old = term.redirect(win)
-    local input = read()
-    term.redirect(old)
-    return input
-end
+-- drawInputPopup removed, using gui.drawInputPopup
 
 local function getFilename(url)
     return url:match("^.*/([^/?]+)") or "downloaded_file"
@@ -730,9 +735,9 @@ while true do
     term.clear()
     local res = drawPopup("Download From", {"Web (URL)", "PasteBin", "Quit"})
     if res == "Web (URL)" then
-        local url = drawInputPopup("Enter URL:")
+        local url = gui.drawInputPopup("Enter URL:")
         if url ~= "" then
-            local name = drawInputPopup("Name (Optional):")
+            local name = gui.drawInputPopup("Name (Optional):")
             if name == "" then name = getFilename(url) end
             local target = fs.combine(dlDir, name)
             term.setBackgroundColor(colors.black)
@@ -743,9 +748,9 @@ while true do
             os.pullEvent("key")
         end
     elseif res == "PasteBin" then
-        local code = drawInputPopup("Enter Code:")
+        local code = gui.drawInputPopup("Enter Code:")
         if code ~= "" then
-            local name = drawInputPopup("Enter Filename:")
+            local name = gui.drawInputPopup("Enter Filename:")
             if name ~= "" then
                 local target = fs.combine(dlDir, name)
                 term.setBackgroundColor(colors.black)
