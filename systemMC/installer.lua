@@ -1,7 +1,7 @@
 -- [[ SystemMC OS Installer v1.0 ]]
 -- Author: Apollo
 -- A premium TUI installer for ComputerCraft Floppy Disks.
-local _VERSION = "0.1.20-b"
+local _VERSION = "0.1.21-b"
 
 local files = {
     -- Root Bootloader
@@ -48,6 +48,15 @@ end
 
 -- Prepend our new paths to the global package path
 package.path = table.concat(newPaths, ";") .. ";" .. package.path
+
+-- 2. Clear TEMP on Boot
+local tempDir = fs.combine(root, "TEMP")
+if fs.exists(tempDir) and fs.isDir(tempDir) then
+    for _, f in ipairs(fs.list(tempDir)) do
+        if f ~= ".keep" then fs.delete(fs.combine(tempDir, f)) end
+    end
+    log("TEMP directory cleared")
+end
 
 term.clear()
 term.setCursorPos(1,1)
@@ -675,8 +684,10 @@ while true do
     elseif k == keys.c then
         local res = gui.drawPopup("Clear Trash?", {"Cancel", "Clear All"})
         if res == "Clear All" then
-            fs.delete(trashDir)
-            fs.delete(indexPath)
+            for _, f in ipairs(fs.list(trashDir)) do
+                if f ~= ".keep" then fs.delete(fs.combine(trashDir, f)) end
+            end
+            saveIndex({})
             selected = 1
         end
     elseif k == keys.q then break end
@@ -1201,6 +1212,8 @@ end
     ["libs/local/.keep"] = "",
     ["user/data/.keep"] = "",
     ["TEMP/.keep"] = "",
+    ["scripts/etc/trash/.keep"] = "",
+    ["scripts/etc/trash_index"] = "{}",
     ["user/scripts/apps/.keep"] = "",
     ["user/scripts/games/.keep"] = "",
     ["user/downloads/.keep"] = "",
