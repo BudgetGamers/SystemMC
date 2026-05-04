@@ -1,7 +1,7 @@
 -- [[ SystemMC OS Installer v1.0 ]]
 -- Author: Apollo
 -- A premium TUI installer for ComputerCraft Floppy Disks.
-local _VERSION = "0.1.17-b"
+local _VERSION = "0.1.18-b"
 
 local files = {
     -- Root Bootloader
@@ -139,7 +139,36 @@ local function drawInputPopup(title)
     return input
 end
 
-return { drawBox = drawBox, menuBar = menuBar, drawStartMenu = drawStartMenu, drawInputPopup = drawInputPopup }
+local function drawPopup(title, opts)
+    sleep(0.05) -- Anti-ghosting delay
+    local w, h = term.getSize()
+    local win = window.create(term.current(), math.floor(w/2-8), math.floor(h/2-2), 17, #opts + 2)
+    local sel = 1
+    while true do
+        win.setBackgroundColor(colors.white)
+        win.setTextColor(colors.black)
+        win.clear()
+        win.setCursorPos(2, 1) win.write(title)
+        for i, o in ipairs(opts) do
+            win.setCursorPos(2, 1 + i)
+            if i == sel then
+                win.setBackgroundColor(colors.blue)
+                win.setTextColor(colors.white)
+            else
+                win.setBackgroundColor(colors.white)
+                win.setTextColor(colors.black)
+            end
+            win.write(" " .. o .. string.rep(" ", 15 - #o))
+        end
+        local _, k = os.pullEvent("key")
+        if k == keys.up then sel = sel > 1 and sel - 1 or #opts
+        elseif k == keys.down then sel = sel < #opts and sel + 1 or 1
+        elseif k == keys.enter then return opts[sel]
+        elseif k == keys.q then return "Cancel" end
+    end
+end
+
+return { drawBox = drawBox, menuBar = menuBar, drawStartMenu = drawStartMenu, drawInputPopup = drawInputPopup, drawPopup = drawPopup }
 ]],
 
     -- Logger Library
@@ -337,6 +366,7 @@ end
     -- File Explorer App
     ["scripts/apps/explorer.lua"] = [[
 local root = ...
+local gui = require("gui")
 local currentPath = root
 local selected, scroll = 1, 0
 local moveSrc = nil
@@ -466,53 +496,9 @@ local function showHelp()
     os.pullEvent("key")
 end
 
-local function drawPopup(title, opts)
-    sleep(0.05) -- Anti-ghosting delay
-    local w, h = term.getSize()
-    local win = window.create(term.current(), math.floor(w/2-8), math.floor(h/2-2), 17, #opts + 2)
-    local sel = 1
-    while true do
-        win.setBackgroundColor(colors.white)
-        win.setTextColor(colors.black)
-        win.clear()
-        win.setCursorPos(2, 1) win.write(title)
-        for i, o in ipairs(opts) do
-            win.setCursorPos(2, 1 + i)
-            if i == sel then
-                win.setBackgroundColor(colors.blue)
-                win.setTextColor(colors.white)
-            else
-                win.setBackgroundColor(colors.white)
-                win.setTextColor(colors.black)
-            end
-            win.write(" " .. o .. string.rep(" ", 15 - #o))
-        end
-        local _, k = os.pullEvent("key")
-        if k == keys.up then sel = sel > 1 and sel - 1 or #opts
-        elseif k == keys.down then sel = sel < #opts and sel + 1 or 1
-        elseif k == keys.enter then return opts[sel]
-        elseif k == keys.q then return "Cancel" end
-    end
-end
+-- drawPopup removed, now using gui.drawPopup
 
-local function drawInputPopup(title)
-    local w, h = term.getSize()
-    local win = window.create(term.current(), math.floor(w/2-10), math.floor(h/2-2), 21, 4)
-    win.setBackgroundColor(colors.white)
-    win.setTextColor(colors.black)
-    win.clear()
-    win.setCursorPos(2, 1)
-    win.write(title)
-    win.setCursorPos(2, 2)
-    win.setBackgroundColor(colors.gray)
-    win.setTextColor(colors.white)
-    win.write(string.rep(" ", 19))
-    win.setCursorPos(2, 2)
-    local old = term.redirect(win)
-    local input = read()
-    term.redirect(old)
-    return input
-end
+-- Using gui.drawInputPopup
 
 while true do
     local list = fs.list(currentPath)
@@ -553,7 +539,7 @@ while true do
         fs.move(moveSrc, fs.combine(currentPath, fs.getName(moveSrc)))
         moveSrc = nil
     elseif (k == keys.d or k == keys.delete) and item ~= "<<" then
-        local res = gui.drawPopup and gui.drawPopup("Delete Item?", {"Cancel", "Move to Trash", "Perm Delete"}) or drawPopup("Delete Item?", {"Cancel", "Move to Trash", "Perm Delete"})
+        local res = gui.drawPopup("Delete Item?", {"Cancel", "Move to Trash", "Perm Delete"})
         if res == "Move to Trash" then
             moveToTrash(fullPath)
         elseif res == "Perm Delete" then
@@ -693,33 +679,8 @@ end
     -- Download App
     ["scripts/apps/download.lua"] = [[
 local root = ...
-local function drawPopup(title, opts)
-    local w, h = term.getSize()
-    local win = window.create(term.current(), math.floor(w/2-8), math.floor(h/2-2), 17, #opts + 2)
-    local sel = 1
-    while true do
-        win.setBackgroundColor(colors.white)
-        win.setTextColor(colors.black)
-        win.clear()
-        win.setCursorPos(2, 1) win.write(title)
-        for i, o in ipairs(opts) do
-            win.setCursorPos(2, 1 + i)
-            if i == sel then
-                win.setBackgroundColor(colors.blue)
-                win.setTextColor(colors.white)
-            else
-                win.setBackgroundColor(colors.white)
-                win.setTextColor(colors.black)
-            end
-            win.write(" " .. o .. string.rep(" ", 15 - #o))
-        end
-        local _, k = os.pullEvent("key")
-        if k == keys.up then sel = sel > 1 and sel - 1 or #opts
-        elseif k == keys.down then sel = sel < #opts and sel + 1 or 1
-        elseif k == keys.enter then return opts[sel]
-        elseif k == keys.q then return "Cancel" end
-    end
-end
+local gui = require("gui")
+-- Using gui.drawPopup
 
 -- drawInputPopup removed, using gui.drawInputPopup
 
@@ -733,7 +694,7 @@ if not fs.exists(dlDir) then fs.makeDir(dlDir) end
 while true do
     term.setBackgroundColor(colors.gray)
     term.clear()
-    local res = drawPopup("Download From", {"Web (URL)", "PasteBin", "Quit"})
+    local res = gui.drawPopup("Download From", {"Web (URL)", "PasteBin", "Quit"})
     if res == "Web (URL)" then
         local url = gui.drawInputPopup("Enter URL:")
         if url ~= "" then
