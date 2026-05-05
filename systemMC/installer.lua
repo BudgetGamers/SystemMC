@@ -1,6 +1,6 @@
 -- [[ SystemMC OS Installer v1.0 ]]
 -- Author: Apollo
-local _VERSION = "0.2.9b"
+local _VERSION = "0.2.10b"
 
 local files = {
     -- Root Bootloader
@@ -426,10 +426,9 @@ while running do
             end
         end
     elseif e == "rednet_message" then
-        local id, msg = p1, p2
+        local id, msg, prot = p1, p2, p3
         rn.register(id)
-        if type(msg) == "string" and msg:sub(1,1) == "/" then
-            local cmd = msg:sub(2)
+        if prot == "systemMC_remote_shell" and type(msg) == "string" then
             local settings = rn.getSettings()
             local authorized = false
             if settings.rednetMode == "All" then authorized = true
@@ -439,8 +438,8 @@ while running do
             end
             
             if authorized then
-                logger.log("Remote Command from " .. id .. ": " .. cmd, "NET")
-                shell.run(cmd)
+                logger.log("Remote Shell from " .. id .. ": " .. msg, "NET")
+                shell.run(msg)
             end
         end
     end
@@ -1366,23 +1365,21 @@ local function addMessage(id, msg, type)
     local hist = loadHistory(id)
     local list = type == "sent" and hist.sent or hist.rec
     table.insert(list, { msg = msg, time = os.date("%H:%M") })
-    if #list > 10 then table.remove(list, 1) end
+    if #list > 20 then table.remove(list, 1) end
     saveHistory(id, hist)
 end
 
 local function showChatHelp()
     local w, h = term.getSize()
-    local win = window.create(term.current(), math.floor(w/2-10), math.floor(h/2-4), 21, 9)
+    local win = window.create(term.current(), math.floor(w/2-10), math.floor(h/2-2), 21, 6)
     win.setBackgroundColor(colors.white)
     win.setTextColor(colors.black)
     win.clear()
     local function writeAt(x, y, txt) win.setCursorPos(x, y) win.write(txt) end
     writeAt(2, 2, "Chat Hotkeys")
     writeAt(2, 3, string.rep("-", 17))
-    writeAt(2, 4, "S: Send Msg/Cmd")
-    writeAt(2, 6, "Msg: Hello")
-    writeAt(2, 7, "Cmd: /reboot")
-    writeAt(2, 8, "Any key to close")
+    writeAt(2, 4, "S: Send Message")
+    writeAt(2, 5, "Any key to close")
     os.pullEvent("key")
 end
 
@@ -1471,6 +1468,82 @@ while true do
             end
         elseif e == "rednet_message" and k == currentID then
             addMessage(currentID, msg, "rec")
+        end
+    end
+end
+]],
+
+    -- Rednet Remote Terminal App
+    ["user/scripts/Rednet/terminal.lua"] = [[
+local root = ...
+if root then
+    local paths = { "libs/rom", "libs/local", "scripts/systemMC" }
+    local pStr = ""
+    for _, p in ipairs(paths) do
+        local full = fs.combine(root, p)
+        if not full:match("^/") then full = "/" .. full end
+        pStr = pStr .. full .. "/?.lua;" .. full .. "/?/init.lua;"
+    end
+    package.path = pStr .. package.path
+end
+
+local gui = require("gui")
+local rn = require("rednet_api")
+local selected = 1
+
+local function drawList(index)
+    local w, h = term.getSize()
+    term.setBackgroundColor(colors.gray)
+    term.clear()
+    term.setCursorPos(1, 1)
+    term.setBackgroundColor(colors.blue)
+    term.setTextColor(colors.white)
+    term.clearLine()
+    print(" Remote Terminal: Select Target")
+    
+    local sortedIds = {}
+    for id in pairs(index) do table.insert(sortedIds, id) end
+    table.sort(sortedIds)
+    
+    for i, id in ipairs(sortedIds) do
+        term.setCursorPos(1, 1 + i)
+        if i == selected then term.setBackgroundColor(colors.lightBlue)
+        else term.setBackgroundColor(colors.gray) end
+        local line = " [" .. id .. "] " .. index[id]
+        term.write(line .. string.rep(" ", w - #line))
+    end
+    term.setCursorPos(1, h)
+    term.setBackgroundColor(colors.blue)
+    term.clearLine()
+    term.write(" Q:Quit")
+    return sortedIds
+end
+
+while true do
+    local index = rn.loadIndex()
+    local sorted = drawList(index)
+    local _, k = os.pullEvent("key")
+    if k == keys.q then break
+    elseif k == keys.up then selected = selected > 1 and selected - 1 or #sorted
+    elseif k == keys.down then selected = selected < #sorted and selected + 1 or 1
+    elseif k == keys.enter and #sorted > 0 then
+        local targetID = sorted[selected]
+        term.setBackgroundColor(colors.black)
+        term.setTextColor(colors.yellow)
+        term.clear()
+        term.setCursorPos(1, 1)
+        print("Connected to " .. index[targetID] .. " [" .. targetID .. "]")
+        print("Type 'exit' to disconnect.")
+        
+        while true do
+            term.setTextColor(colors.lime)
+            term.write("remote> ")
+            term.setTextColor(colors.white)
+            local cmd = read()
+            if cmd == "exit" then break end
+            if cmd ~= "" then
+                rednet.send(targetID, cmd, "systemMC_remote_shell")
+            end
         end
     end
 end
