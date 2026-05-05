@@ -1,6 +1,6 @@
 -- [[ SystemMC OS Installer v1.0 ]]
 -- Author: Apollo
-local _VERSION = "0.1.24-b"
+local _VERSION = "0.1.25-b"
 
 local files = {
     -- Root Bootloader
@@ -1060,7 +1060,7 @@ while true do
                 if not fs.exists(tempDir) then fs.makeDir(tempDir) end
                 local tempInstaller = fs.combine(tempDir, "installer.lua")
                 
-                shell.run("wget https://raw.githubusercontent.com/BudgetGamers/SystemMC/refs/heads/main/systemMC/installer.lua " .. tempInstaller)
+                shell.run("wget https://github.com/BudgetGamers/SystemMC/releases/latest/download/installer.lua " .. tempInstaller)
                 
                 if fs.exists(tempInstaller) then
                     local f = fs.open(tempInstaller, "r")
@@ -1148,7 +1148,7 @@ local function draw()
     term.setBackgroundColor(colors.blue)
     term.setTextColor(colors.white)
     term.clearLine()
-    print(" Rednet Manager")
+    print(" Rednet Manager [ID: " .. os.getComputerID() .. "]")
     
     local sortedIds = {}
     for id in pairs(index) do table.insert(sortedIds, id) end
