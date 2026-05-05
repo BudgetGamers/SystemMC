@@ -1,6 +1,6 @@
 -- [[ SystemMC OS Installer v1.0 ]]
 -- Author: Apollo
-local _VERSION = "0.2.19b"
+local _VERSION = "0.2.21b"
 
 local files = {
     -- Root Bootloader
@@ -212,9 +212,21 @@ return { drawBox = drawBox, menuBar = menuBar, drawStartMenu = drawStartMenu, dr
 
     -- Rednet API Library
     ["libs/rom/rednet_api.lua"] = [[
-local root = ...
-local indexPath = fs.combine(root, "user/data/rednet/rednet.index")
-local settingsPath = fs.combine(root, "settings.cfg")
+local root = "/"
+local indexPath = "/user/data/rednet/rednet.index"
+local settingsPath = "/settings.cfg"
+
+local function setRoot(newRoot)
+    root = newRoot
+    indexPath = fs.combine(root, "user/data/rednet/rednet.index")
+    settingsPath = fs.combine(root, "settings.cfg")
+end
+
+-- Try to auto-detect root from args
+local args = {...}
+if args[1] and type(args[1]) == "string" and fs.exists(args[1]) then
+    setRoot(args[1])
+end
 
 local function loadIndex()
     if not fs.exists(indexPath) then return {} end
@@ -263,7 +275,7 @@ local function register(id)
     end
 end
 
-return { register = register, loadIndex = loadIndex, saveIndex = saveIndex, getSettings = getSettings }
+return { setRoot = setRoot, register = register, loadIndex = loadIndex, saveIndex = saveIndex, getSettings = getSettings }
 ]],
 
     -- Logger Library
@@ -320,10 +332,12 @@ end
 
 local logger = require("logger")
 -- ==DESKTOP==
+local logger = require("logger")
+-- ==DESKTOP==
 local gui = require("gui")
 -- ==/DESKTOP==
 local rn = require("rednet_api")
-rn.setRoot = function(r) root = r end -- Inject root into rn context if needed
+rn.setRoot(root)
 logger.setRoot(root)
 
 local w, h = term.getSize()
@@ -953,6 +967,16 @@ end
     ["scripts/apps/help.lua"] = [[
 local _VERSION = "{{VERSION}}"
 local root = ...
+if root then
+    local paths = { "libs/rom", "libs/local", "scripts/systemMC" }
+    local pStr = ""
+    for _, p in ipairs(paths) do
+        local full = fs.combine(root, p)
+        if not full:match("^/") then full = "/" .. full end
+        pStr = pStr .. full .. "/?.lua;" .. full .. "/?/init.lua;"
+    end
+    package.path = pStr .. package.path
+end
 local selected, scroll = 1, 0
 local groups = {
     { title = "System Info", expanded = true, items = {
