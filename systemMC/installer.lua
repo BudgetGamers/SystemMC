@@ -1,7 +1,7 @@
 -- [[ SystemMC OS Installer v1.0 ]]
 -- Author: Apollo
 -- A premium TUI installer for ComputerCraft Floppy Disks.
-local _VERSION = "0.1.21-b"
+local _VERSION = "0.1.22-b"
 
 local files = {
     -- Root Bootloader
