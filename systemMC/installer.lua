@@ -1,6 +1,6 @@
 -- [[ SystemMC OS Installer v1.0 ]]
 -- Author: Apollo
-local _VERSION = "0.2.2-b"
+local _VERSION = "0.2.3-b"
 
 local files = {
     -- Root Bootloader
@@ -45,10 +45,15 @@ for _, p in ipairs(systemPaths) do
     log("Registered Path: " .. full)
 end
 
--- Prepend our new paths to the global package path
-package.path = table.concat(newPaths, ";") .. ";" .. package.path
+-- 2. Initialize Rednet
+for _, side in ipairs(peripheral.getNames()) do
+    if peripheral.getType(side) == "modem" then
+        rednet.open(side)
+        log("Rednet opened on: " .. side)
+    end
+end
 
--- 2. Clear TEMP on Boot
+-- 3. Clear TEMP on Boot
 local tempDir = fs.combine(root, "TEMP")
 if fs.exists(tempDir) and fs.isDir(tempDir) then
     for _, f in ipairs(fs.list(tempDir)) do
@@ -292,13 +297,6 @@ local gui = require("gui")
 local rn = require("rednet_api")
 rn.setRoot = function(r) root = r end -- Inject root into rn context if needed
 logger.setRoot(root)
-
--- Open modems
-for _, side in ipairs(peripheral.getNames()) do
-    if peripheral.getType(side) == "modem" then
-        rednet.open(side)
-    end
-end
 
 local w, h = term.getSize()
 local running = true
@@ -1002,7 +1000,9 @@ local function loadSettings()
         local content = f.readAll()
         f.close()
         for k, v in content:gmatch("([%w_]+)%s*=%s*([%w_]+)") do
-            settings[k] = (v == "true")
+            if v == "true" then settings[k] = true
+            elseif v == "false" then settings[k] = false
+            else settings[k] = v end
         end
     end
     -- Sync settings to tabs
@@ -1018,7 +1018,7 @@ local function saveSettings()
     local f = fs.open(path, "w")
     for _, tab in ipairs(tabs) do
         for _, opt in ipairs(tab.options) do
-            if opt.type == "toggle" then
+            if opt.type == "toggle" or opt.type == "cycle" then
                 f.writeLine(opt.key .. " = " .. tostring(opt.value))
             end
         end
@@ -1139,6 +1139,11 @@ while true do
         if opt then
             if opt.type == "toggle" then
                 opt.value = not opt.value
+            elseif opt.type == "cycle" then
+                local cur = 1
+                for i, v in ipairs(opt.values) do if v == opt.value then cur = i break end end
+                cur = cur < #opt.values and cur + 1 or 1
+                opt.value = opt.values[cur]
             elseif opt.key == "update" or opt.key == "force_update" then
                 term.setCursorPos(1, 10)
                 term.setBackgroundColor(colors.black)
