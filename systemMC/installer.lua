@@ -1,6 +1,6 @@
 -- [[ SystemMC OS Installer v1.0 ]]
 -- Author: Apollo
-local _VERSION = "0.2.5-b"
+local _VERSION = "0.2.6-b"
 
 local files = {
     -- Root Bootloader
@@ -309,10 +309,24 @@ local systemSettings = rn.getSettings()
 local function updateMonitorDisplay()
     local mon = peripheral.find("monitor")
     if not mon then return end
-    
-    local oldTerm = term.redirect(mon)
-    drawDesktop()
-    term.redirect(oldTerm)
+
+    while true do
+        -- 1. Save the OLD screen and OLD dimensions
+        local oldTerm = term.redirect(mon)
+        local oldW, oldH = w, h
+        
+        -- 2. Update dimensions to match the MONITOR
+        w, h = mon.getSize()
+        
+        -- 3. Draw it
+        drawDesktop()
+        
+        -- 4. Restore everything for the main computer screen
+        w, h = oldW, oldH
+        term.redirect(oldTerm)
+        
+        sleep(1) -- Refresh rate (1 second)
+    end
 end
 
 os.startTimer(1) -- Start mirror timer
