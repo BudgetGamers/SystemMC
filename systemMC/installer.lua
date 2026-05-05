@@ -1,6 +1,6 @@
 -- [[ SystemMC OS Installer v1.0 ]]
 -- Author: Apollo
-local _VERSION = "0.2.12b"
+local _VERSION = "0.2.13b"
 
 local files = {
     -- Root Bootloader
@@ -450,7 +450,8 @@ while running do
                 end
                 
                 if msg == "reboot" or msg == "shutdown" then
-                    rednet.send(id, "System " .. msg .. "ing...", "systemMC_remote_response")
+                    local status = msg == "reboot" and "Rebooting..." or "Shutting down..."
+                    rednet.send(id, "System " .. status, "systemMC_remote_response")
                     sleep(0.2)
                 end
 
