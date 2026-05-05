@@ -1,6 +1,6 @@
 -- [[ SystemMC OS Installer v1.0 ]]
 -- Author: Apollo
-local _VERSION = "0.2.14b"
+local _VERSION = "0.2.15b"
 
 local files = {
     -- Root Bootloader
@@ -1934,82 +1934,73 @@ local function install(targetPath, isUpdate, doFormat, headless)
     local current = 0
 
     for path, content in pairs(files) do
+        local skip = false
         if headless then
-            local skip = false
-            local exclude = { "explorer.lua", "download.lua", "trash.lua", "messenger.lua", "scripter.lua", "terminal.lua" }
+            local exclude = { "explorer.lua", "download.lua", "trash.lua", "messenger.lua", "scripter.lua", "terminal.lua", "gui.lua" }
             for _, s in ipairs(exclude) do
                 if path:find(s) then skip = true break end
             end
-            if skip then 
-                current = current + 1
-                goto continue 
-            end
-            -- Skip graphical libs entirely
-            if path:find("gui.lua") then
-                current = current + 1
-                goto continue
-            end
-            -- Strip desktop parts from files
-            content = content:gsub("%-%-%s==DESKTOP==.-%-%-%s==/DESKTOP==", "")
         end
-        current = current + 1
-        local fullPath = fs.combine(targetPath, path)
-        
-        -- Inject version
-        local finalContent = content:gsub("{{VERSION}}", _VERSION)
 
-        -- If headless, ensure settings.cfg has it
-        if path == "settings.cfg" and headless then
-            if not finalContent:match("headless%s*=") then
-                finalContent = finalContent .. "\nheadless = true"
-            else
-                finalContent = finalContent:gsub("headless%s*=%s*[%w_]+", "headless = true")
+        if not skip then
+            current = current + 1
+            if headless then
+                content = content:gsub("%-%-%s==DESKTOP==.-%-%-%s==/DESKTOP==", "")
             end
-        end
-        
-        -- Special Handling: settings.cfg (Merge rather than overwrite)
-        if path == "settings.cfg" and fs.exists(fullPath) then
-            local f_old = fs.open(fullPath, "r")
-            local old_content = f_old.readAll()
-            f_old.close()
-            local merged = old_content
-            for line in finalContent:gmatch("[^\r\n]+") do
-                local key = line:match("^([^%s=]+)")
-                if key and not old_content:match("^" .. key .. "%s*=") and not old_content:match("\n" .. key .. "%s*=") then
-                    merged = merged .. "\n" .. line
+            
+            local fullPath = fs.combine(targetPath, path)
+            local finalContent = content:gsub("{{VERSION}}", _VERSION)
+
+            if path == "settings.cfg" and headless then
+                if not finalContent:match("headless%s*=") then
+                    finalContent = finalContent .. "\nheadless = true"
+                else
+                    finalContent = finalContent:gsub("headless%s*=%s*[%w_]+", "headless = true")
                 end
             end
-            finalContent = merged
+            
+            if path == "settings.cfg" and fs.exists(fullPath) then
+                local f_old = fs.open(fullPath, "r")
+                local old_content = f_old.readAll()
+                f_old.close()
+                local merged = old_content
+                for line in finalContent:gmatch("[^\r\n]+") do
+                    local key = line:match("^([^%s=]+)")
+                    if key and not old_content:match("^" .. key .. "%s*=") and not old_content:match("\n" .. key .. "%s*=") then
+                        merged = merged .. "\n" .. line
+                    end
+                end
+                finalContent = merged
+            end
+
+            term.setBackgroundColor(colors.white)
+            term.setTextColor(colors.black)
+            term.setCursorPos(4, 8)
+            local displayPath = #path > w - 10 and ".." .. path:sub(-w + 12) or path
+            term.write("File: " .. displayPath .. string.rep(" ", w - #displayPath - 8))
+            
+            local progress = math.floor((current / total) * (w - 6))
+            term.setCursorPos(4, 10)
+            term.setBackgroundColor(colors.gray)
+            term.write(string.rep(" ", w - 6))
+            term.setCursorPos(4, 10)
+            term.setBackgroundColor(colors.lime)
+            term.write(string.rep(" ", progress))
+
+            finalContent = finalContent:gsub("%-%-%s==DESKTOP==\n", ""):gsub("%-%-%s==/DESKTOP==\n", "")
+            finalContent = finalContent:gsub("%-%-%s==DESKTOP==", ""):gsub("%-%-%s==/DESKTOP==", "")
+
+            local dir = fs.getDir(fullPath)
+            if not fs.exists(dir) then fs.makeDir(dir) end
+            
+            local f = fs.open(fullPath, "w")
+            f.write(minimize(finalContent))
+            f.close()
+            
+            sleep(0.05)
+        else
+            current = current + 1
         end
-
-        -- Progress Bar UI
-        term.setBackgroundColor(colors.white)
-        term.setTextColor(colors.black)
-        term.setCursorPos(4, 8)
-        local displayPath = #path > w - 10 and ".." .. path:sub(-w + 12) or path
-        term.write("File: " .. displayPath .. string.rep(" ", w - #displayPath - 8))
-        
-        local progress = math.floor((current / total) * (w - 6))
-        term.setCursorPos(4, 10)
-        term.setBackgroundColor(colors.gray)
-        term.write(string.rep(" ", w - 6))
-        term.setCursorPos(4, 10)
-        term.setBackgroundColor(colors.lime)
-        term.write(string.rep(" ", progress))
-
-        -- Clean up installer tags for final file
-        finalContent = finalContent:gsub("%-%-%s==DESKTOP==\n", ""):gsub("%-%-%s==/DESKTOP==\n", "")
-        finalContent = finalContent:gsub("%-%-%s==DESKTOP==", ""):gsub("%-%-%s==/DESKTOP==", "")
-
-        -- Update Logic: Only write core files
-        local dir = fs.getDir(fullPath)
-        if not fs.exists(dir) then fs.makeDir(dir) end
-        
-        local f = fs.open(fullPath, "w")
-        f.write(minimize(finalContent))
-        f.close()
-        
-        sleep(0.05)
     end
 
     centerText(doFormat and "Install Complete!" or "Update Complete!", 12, colors.white, colors.green)
