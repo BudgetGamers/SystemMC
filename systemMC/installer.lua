@@ -1,6 +1,6 @@
 -- [[ SystemMC OS Installer v1.0 ]]
 -- Author: Apollo
-local _VERSION = "0.2.13b"
+local _VERSION = "0.2.14b"
 
 local files = {
     -- Root Bootloader
@@ -293,7 +293,9 @@ if root then
 end
 
 local logger = require("logger")
+-- [[DESKTOP]]
 local gui = require("gui")
+-- [[/DESKTOP]]
 local rn = require("rednet_api")
 rn.setRoot = function(r) root = r end -- Inject root into rn context if needed
 logger.setRoot(root)
@@ -303,10 +305,42 @@ local running = true
 local menuOpen = false
 local selectedIdx = 1
 local menuStack = {}
-local settings = { pocketMode = false }
+local settings = { pocketMode = false, headless = false }
+
+-- Load initial settings
+local sPath = fs.combine(root, "settings.cfg")
+if fs.exists(sPath) then
+    local f = fs.open(sPath, "r")
+    local content = f.readAll()
+    f.close()
+    for k, v in content:gmatch("([%w_]+)%s*=%s*([%w_]+)") do
+        if v == "true" then settings[k] = true
+        elseif v == "false" then settings[k] = false
+        else settings[k] = v end
+    end
+end
 
 -- Pre-declare functions for mutual visibility
 local scanDir, scanUserApps, loadSettings, drawDesktop, openApp
+-- [[DESKTOP]]
+drawDesktop = function()
+    scanUserApps()
+    loadSettings()
+    term.setBackgroundColor(colors.black)
+    term.setTextColor(colors.blue)
+    term.clear()
+    for i = 2, h do
+        if i % 2 == 0 then
+            term.setCursorPos(1, i)
+            term.blit(string.rep("\15", w), string.rep("b", w), string.rep("f", w))
+        end
+    end
+    gui.menuBar(w, menuOpen, settings.pocketMode)
+    if menuOpen then
+        gui.drawStartMenu(1, 1, currentMenu, selectedIdx)
+    end
+end
+-- [[/DESKTOP]]
 
 local startMenu = {
     { name = "System", items = {
@@ -339,6 +373,18 @@ end
 
 scanUserApps = function()
     local apps = scanDir("user/scripts", "user/scripts")
+    if settings.headless then
+        local filtered = {}
+        local exclude = { "explorer", "trash", "download", "messenger", "scripter", "terminal" }
+        for _, itm in ipairs(apps) do
+            local skip = false
+            for _, ex in ipairs(exclude) do
+                if itm.name:lower():find(ex) then skip = true break end
+            end
+            if not skip then table.insert(filtered, itm) end
+        end
+        apps = filtered
+    end
     if #apps == 0 then table.insert(apps, { name = "Empty", action = "none" }) end
     startMenu[2].items = apps
 end
@@ -373,6 +419,7 @@ drawDesktop = function()
     end
 end
 
+-- [[DESKTOP]]
 openApp = function(name, path)
     logger.log("Opening App: " .. name, "OS")
     local appWin = window.create(term.current(), 1, 2, w, h - 1, true)
@@ -382,14 +429,21 @@ openApp = function(name, path)
     menuOpen = false
     drawDesktop()
 end
+-- [[/DESKTOP]]
 
 while running do
-    drawDesktop()
+    if not settings.headless then
+        drawDesktop()
+    end
     local e, p1, p2, p3 = os.pullEvent()
     
     if e == "key" then
         local k = p1
-        if not menuOpen then
+        if settings.headless then
+            -- In headless mode, only allow shutdown from start menu or similar
+            -- But since there's no menu, we should probably have a hotkey
+            if k == keys.endKey then running = false end
+        elseif not menuOpen then
             if k == keys.enter or k == keys.space then
                 menuOpen = true
                 selectedIdx = 1
@@ -1016,7 +1070,8 @@ local tabScroll = 0
 
 local tabs = {
     { name = "General", options = {
-        { name = "Pocket Mode", key = "pocketMode", type = "toggle", value = false }
+        { name = "Pocket Mode", key = "pocketMode", type = "toggle", value = false },
+        { name = "Headless Mode", key = "headless", type = "toggle", value = false }
     }},
     { name = "Updates", options = {
         { name = "Check Update", key = "update", type = "action", value = " " },
@@ -1066,20 +1121,39 @@ end
 
 local function draw()
     local w, h = term.getSize()
-    term.setBackgroundColor(colors.gray)
+    local isHeadless = settings.headless
+    
+    if isHeadless then
+        term.setBackgroundColor(colors.black)
+        term.setTextColor(colors.white)
+    else
+        term.setBackgroundColor(colors.gray)
+        term.setTextColor(colors.white)
+    end
     term.clear()
     
     -- Header
     term.setCursorPos(1,1)
-    term.setBackgroundColor(colors.blue)
-    term.setTextColor(colors.white)
-    term.clearLine()
-    term.write(" Settings Manager")
+    if isHeadless then
+        term.setBackgroundColor(colors.black)
+        term.setTextColor(colors.white)
+        print(" [ Settings ]")
+    else
+        term.setBackgroundColor(colors.blue)
+        term.setTextColor(colors.white)
+        term.clearLine()
+        print(" Settings Manager")
+    end
     
     -- Tabs with scrolling logic
     term.setCursorPos(1, 2)
-    term.setBackgroundColor(colors.lightGray)
-    term.setTextColor(colors.black)
+    if isHeadless then
+        term.setBackgroundColor(colors.black)
+        term.setTextColor(colors.white)
+    else
+        term.setBackgroundColor(colors.lightGray)
+        term.setTextColor(colors.black)
+    end
     term.clearLine()
     
     local currentX = 1
@@ -1095,11 +1169,21 @@ local function draw()
         if drawX + #label > 0 and drawX <= w then
             term.setCursorPos(math.max(1, drawX), 2)
             if i == currentTab then
-                term.setBackgroundColor(colors.blue)
-                term.setTextColor(colors.white)
+                if isHeadless then
+                    term.setBackgroundColor(colors.white)
+                    term.setTextColor(colors.black)
+                else
+                    term.setBackgroundColor(colors.blue)
+                    term.setTextColor(colors.white)
+                end
             else
-                term.setBackgroundColor(colors.lightGray)
-                term.setTextColor(colors.black)
+                if isHeadless then
+                    term.setBackgroundColor(colors.black)
+                    term.setTextColor(colors.white)
+                else
+                    term.setBackgroundColor(colors.lightGray)
+                    term.setTextColor(colors.black)
+                end
             end
             local start = drawX < 1 and (2 - drawX) or 1
             local length = math.min(#label - start + 1, w - math.max(1, drawX) + 1)
@@ -1112,7 +1196,7 @@ local function draw()
     local options = tabs[currentTab].options
     if #options == 0 then
         term.setCursorPos(math.floor(w/2 - 2), math.floor(h/2))
-        term.setBackgroundColor(colors.gray)
+        term.setBackgroundColor(isHeadless and colors.black or colors.gray)
         term.setTextColor(colors.lightGray)
         term.write("(WIP)")
     else
@@ -1120,10 +1204,10 @@ local function draw()
             local y = i + 3
             term.setCursorPos(2, y)
             if i == selected then
-                term.setBackgroundColor(colors.lightBlue)
-                term.setTextColor(colors.white)
+                term.setBackgroundColor(isHeadless and colors.white or colors.lightBlue)
+                term.setTextColor(isHeadless and colors.black or colors.white)
             else
-                term.setBackgroundColor(colors.gray)
+                term.setBackgroundColor(isHeadless and colors.black or colors.gray)
                 term.setTextColor(colors.white)
             end
             
@@ -1142,8 +1226,13 @@ local function draw()
     
     -- Footer
     term.setCursorPos(1, h)
-    term.setBackgroundColor(colors.blue)
-    term.setTextColor(colors.white)
+    if isHeadless then
+        term.setBackgroundColor(colors.black)
+        term.setTextColor(colors.white)
+    else
+        term.setBackgroundColor(colors.blue)
+        term.setTextColor(colors.white)
+    end
     term.clearLine()
     term.write(" Enter:Act Q:Quit")
 end
@@ -1237,7 +1326,7 @@ end
 
     -- Rednet Manager App
     ["user/scripts/Rednet/manager.lua"] = [[
-local root = ...
+local root, cmd, arg1, arg2 = ...
 if root then
     local paths = { "libs/rom", "libs/local", "scripts/systemMC" }
     local pStr = ""
@@ -1251,6 +1340,35 @@ end
 
 local gui = require("gui")
 local rn = require("rednet_api")
+
+-- CLI Support
+if cmd then
+    local index = rn.loadIndex()
+    if cmd == "-a" then
+        local id = tonumber(arg1)
+        if id and arg2 then
+            index[id] = arg2
+            rn.saveIndex(index)
+            print("Added " .. arg2 .. " [" .. id .. "]")
+        end
+    elseif cmd == "-r" then
+        local id = tonumber(arg1)
+        if id then
+            index[id] = nil
+            rn.saveIndex(index)
+            print("Removed " .. id)
+        end
+    elseif cmd == "-l" then
+        print("Rednet Index:")
+        for id, name in pairs(index) do
+            print(string.format("[%d] %s", id, name))
+        end
+    else
+        print("Usage: manager [-a id name] [-r id] [-l]")
+    end
+    return
+end
+
 local selected = 1
 
 local function showHelp()
@@ -1792,7 +1910,7 @@ local function minimize(content)
     return table.concat(lines, "\n")
 end
 
-local function install(targetPath, isUpdate, doFormat)
+local function install(targetPath, isUpdate, doFormat, headless)
     drawBackground()
     local title = doFormat and "Installing..." or (isUpdate and "Updating..." or "Setup...")
     drawBox(2, 4, w - 2, 12, title)
@@ -1816,11 +1934,38 @@ local function install(targetPath, isUpdate, doFormat)
     local current = 0
 
     for path, content in pairs(files) do
+        if headless then
+            local skip = false
+            local exclude = { "explorer.lua", "download.lua", "trash.lua", "messenger.lua", "scripter.lua", "terminal.lua" }
+            for _, s in ipairs(exclude) do
+                if path:find(s) then skip = true break end
+            end
+            if skip then 
+                current = current + 1
+                goto continue 
+            end
+            -- Skip graphical libs entirely
+            if path:find("gui.lua") then
+                current = current + 1
+                goto continue
+            end
+            -- Strip desktop parts from files
+            content = content:gsub("%-%-%s%[%[DESKTOP%]%].-%-%-%s%[%[/DESKTOP%]%]", "")
+        end
         current = current + 1
         local fullPath = fs.combine(targetPath, path)
         
         -- Inject version
         local finalContent = content:gsub("{{VERSION}}", _VERSION)
+
+        -- If headless, ensure settings.cfg has it
+        if path == "settings.cfg" and headless then
+            if not finalContent:match("headless%s*=") then
+                finalContent = finalContent .. "\nheadless = true"
+            else
+                finalContent = finalContent:gsub("headless%s*=%s*[%w_]+", "headless = true")
+            end
+        end
         
         -- Special Handling: settings.cfg (Merge rather than overwrite)
         if path == "settings.cfg" and fs.exists(fullPath) then
@@ -1875,6 +2020,7 @@ local drives = {}
 local selIdx = 1
 local targetDrive = nil
 local doFormat = false
+local isHeadless = false
 
 while true do
     drawBackground()
@@ -1913,29 +2059,34 @@ while true do
 
     elseif step == 3 then -- Options
         local isUpdate = fs.exists(fs.combine(targetDrive.path, "scripts/systemMC/kernel.lua"))
-        drawBox(2, 4, w-2, 10, "Setup Options")
+        drawBox(2, 4, w-2, 11, "Setup Options")
         centerText("Target: " .. targetDrive.path, 6, colors.white, colors.black)
-        centerText("Status: " .. (isUpdate and "OS Found" or "Empty"), 8, colors.white, colors.gray)
+        centerText("Status: " .. (isUpdate and "OS Found" or "Empty"), 7, colors.white, colors.gray)
         
+        centerText("Mode: " .. (isHeadless and "HEADLESS" or "DESKTOP"), 9, colors.white, colors.blue)
+        centerText("[H] Toggle Mode", 10, colors.white, colors.lightGray)
+
         if targetDrive.path == "/" then
-            centerText("[U] Update (Keep Files)", 11, colors.white, colors.blue)
+            centerText("[U] Update (Keep Files)", 12, colors.white, colors.blue)
         else
-            centerText("[U] Update  [F] Format", 11, colors.white, colors.blue)
+            centerText("[U] Update  [F] Format", 12, colors.white, colors.blue)
         end
         
         local _, k = os.pullEvent("key")
-        if k == keys.u then doFormat = false; step = 4
+        if k == keys.h then isHeadless = not isHeadless
+        elseif k == keys.u then doFormat = false; step = 4
         elseif k == keys.f and targetDrive.path ~= "/" then doFormat = true; step = 4
         elseif k == keys.backspace then step = 2 end
 
     elseif step == 4 then -- Final Confirm
-        drawBox(2, 5, w-2, 8, "Confirmation")
+        drawBox(2, 5, w-2, 9, "Confirmation")
         centerText("Install to " .. targetDrive.path .. "?", 7, colors.white, colors.red)
-        centerText("[ENTER] Finalize", 10, colors.white, colors.blue)
-        centerText("[BACKSPACE] Cancel", 11, colors.white, colors.gray)
+        centerText("Mode: " .. (isHeadless and "Headless" or "Desktop"), 8, colors.white, colors.gray)
+        centerText("[ENTER] Finalize", 11, colors.white, colors.blue)
+        centerText("[BACKSPACE] Cancel", 12, colors.white, colors.gray)
         local _, k = os.pullEvent("key")
         if k == keys.enter then 
-            install(targetDrive.path, not doFormat, doFormat)
+            install(targetDrive.path, not doFormat, doFormat, isHeadless)
             break
         elseif k == keys.backspace then step = 3 end
     end
