@@ -1,6 +1,6 @@
 -- [[ SystemMC OS Installer v1.0 ]]
 -- Author: Apollo
-local _VERSION = "0.2.3-b"
+local _VERSION = "0.2.4-b"
 
 local files = {
     -- Root Bootloader
@@ -1355,15 +1355,17 @@ end
 
 local function showChatHelp()
     local w, h = term.getSize()
-    local win = window.create(term.current(), math.floor(w/2-10), math.floor(h/2-2), 21, 6)
+    local win = window.create(term.current(), math.floor(w/2-10), math.floor(h/2-4), 21, 9)
     win.setBackgroundColor(colors.white)
     win.setTextColor(colors.black)
     win.clear()
     local function writeAt(x, y, txt) win.setCursorPos(x, y) win.write(txt) end
     writeAt(2, 2, "Chat Hotkeys")
     writeAt(2, 3, string.rep("-", 17))
-    writeAt(2, 4, "S: Send Message")
-    writeAt(2, 5, "Any key to close")
+    writeAt(2, 4, "S: Send Msg/Cmd")
+    writeAt(2, 6, "Msg: Hello")
+    writeAt(2, 7, "Cmd: /reboot")
+    writeAt(2, 8, "Any key to close")
     os.pullEvent("key")
 end
 
