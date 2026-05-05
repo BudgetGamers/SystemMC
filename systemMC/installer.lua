@@ -1,6 +1,6 @@
 -- [[ SystemMC OS Installer v1.0 ]]
 -- Author: Apollo
-local _VERSION = "0.1.26-b"
+local _VERSION = "0.2.0-b"
 
 local files = {
     -- Root Bootloader
@@ -179,6 +179,62 @@ end
 return { drawBox = drawBox, menuBar = menuBar, drawStartMenu = drawStartMenu, drawInputPopup = drawInputPopup, drawPopup = drawPopup }
 ]],
 
+    -- Rednet API Library
+    ["libs/rom/rednet_api.lua"] = [[
+local root = ...
+local indexPath = fs.combine(root, "user/data/rednet/rednet.index")
+local settingsPath = fs.combine(root, "settings.cfg")
+
+local function loadIndex()
+    if not fs.exists(indexPath) then return {} end
+    local f = fs.open(indexPath, "r")
+    local data = textutils.unserialize(f.readAll()) or {}
+    f.close()
+    return data
+end
+
+local function saveIndex(index)
+    local f = fs.open(indexPath, "w")
+    f.write(textutils.serialize(index))
+    f.close()
+end
+
+local function getSettings()
+    local settings = { rednetMode = "All", rednetOverrides = {} }
+    if fs.exists(settingsPath) then
+        local f = fs.open(settingsPath, "r")
+        local content = f.readAll()
+        f.close()
+        settings.rednetMode = content:match("rednetMode%s*=%s*([%w_]+)") or "All"
+        -- Overrides would be more complex to parse here, simplified for now
+    end
+    return settings
+end
+
+local function shouldRegister(id)
+    local s = getSettings()
+    if s.rednetOverrides[id] ~= nil then return s.rednetOverrides[id] end
+    if s.rednetMode == "All" then return true
+    elseif s.rednetMode == "None" then return false
+    elseif s.rednetMode == "Permitted" then
+        local index = loadIndex()
+        return index[id] ~= nil
+    end
+    return false
+end
+
+local function register(id)
+    if not shouldRegister(id) then return end
+    local index = loadIndex()
+    if not index[id] then
+        index[id] = "New Device " .. id
+        saveIndex(index)
+    end
+end
+
+return { register = register, loadIndex = loadIndex, saveIndex = saveIndex, getSettings = getSettings }
+]],
+
     -- Logger Library
     ["libs/rom/logger.lua"] = [[
 local root = ...
@@ -233,7 +289,16 @@ end
 
 local logger = require("logger")
 local gui = require("gui")
+local rn = require("rednet_api")
+rn.setRoot = function(r) root = r end -- Inject root into rn context if needed
 logger.setRoot(root)
+
+-- Open modems
+for _, side in ipairs(peripheral.getNames()) do
+    if peripheral.getType(side) == "modem" then
+        rednet.open(side)
+    end
+end
 
 local w, h = term.getSize()
 local running = true
@@ -322,43 +387,47 @@ end
 
 while running do
     drawDesktop()
-    local event, key = os.pullEvent("key")
+    local e, k = os.pullEvent()
     
-    if not menuOpen then
-        if key == keys.enter or key == keys.space then
-            menuOpen = true
-            selectedIdx = 1
-            menuStack = {}
-            currentMenu = startMenu
-        end
-    else
-        if key == keys.up then
-            selectedIdx = selectedIdx > 1 and selectedIdx - 1 or #currentMenu
-        elseif key == keys.down then
-            selectedIdx = selectedIdx < #currentMenu and selectedIdx + 1 or 1
-        elseif key == keys.enter or key == keys.right then
-            local itm = currentMenu[selectedIdx]
-            if itm.items then
-                table.insert(menuStack, { menu = currentMenu, idx = selectedIdx })
-                currentMenu = itm.items
+    if e == "key" then
+        if not menuOpen then
+            if k == keys.enter or k == keys.space then
+                menuOpen = true
                 selectedIdx = 1
-            elseif itm.path then
-                menuOpen = false
-                openApp(itm.app, fs.combine(root, itm.path))
-            elseif itm.action == "shutdown" then
-                running = false
+                menuStack = {}
+                currentMenu = startMenu
             end
-        elseif key == keys.backspace or key == keys.left then
-            if #menuStack > 0 then
-                local last = table.remove(menuStack)
-                currentMenu = last.menu
-                selectedIdx = last.idx
-            else
+        else
+            if k == keys.up then
+                selectedIdx = selectedIdx > 1 and selectedIdx - 1 or #currentMenu
+            elseif k == keys.down then
+                selectedIdx = selectedIdx < #currentMenu and selectedIdx + 1 or 1
+            elseif k == keys.enter or k == keys.right then
+                local itm = currentMenu[selectedIdx]
+                if itm.items then
+                    table.insert(menuStack, { menu = currentMenu, idx = selectedIdx })
+                    currentMenu = itm.items
+                    selectedIdx = 1
+                elseif itm.path then
+                    menuOpen = false
+                    openApp(itm.app, fs.combine(root, itm.path))
+                elseif itm.action == "shutdown" then
+                    running = false
+                end
+            elseif k == keys.backspace or k == keys.left then
+                if #menuStack > 0 then
+                    local last = table.remove(menuStack)
+                    currentMenu = last.menu
+                    selectedIdx = last.idx
+                else
+                    menuOpen = false
+                end
+            elseif k == keys.space then
                 menuOpen = false
             end
-        elseif key == keys.space then
-            menuOpen = false
         end
+    elseif e == "rednet_message" then
+        rn.register(k)
     end
 end
 ]],
@@ -917,7 +986,9 @@ local tabs = {
         { name = "Check Update", key = "update", type = "action", value = " " },
         { name = "Force Update", key = "force_update", type = "action", value = " " }
     }},
-    { name = "Notifications(WIP)", options = {} },
+    { name = "Notifications", options = {
+        { name = "Rednet Receive", key = "rednetMode", type = "cycle", values = {"All", "Permitted", "None"}, value = "All" }
+    }},
     { name = "Colors(WIP)", options = {} },
     { name = "Dev tools(WIP)", options = {} }
 }
@@ -1122,7 +1193,7 @@ end
 ]],
 
     -- Rednet Manager App
-    ["user/scripts/rednet_manager.lua"] = [[
+    ["user/scripts/Rednet/manager.lua"] = [[
 local root = ...
 if root then
     local paths = { "libs/rom", "libs/local", "scripts/systemMC" }
@@ -1136,25 +1207,8 @@ if root then
 end
 
 local gui = require("gui")
-local index = {}
-local indexPath = fs.combine(root, "user/data/rednet/rednet.index")
+local rn = require("rednet_api")
 local selected = 1
-
-local function loadIndex()
-    if fs.exists(indexPath) then
-        local f = fs.open(indexPath, "r")
-        index = textutils.unserialize(f.readAll()) or {}
-        f.close()
-    end
-end
-
-local function saveIndex()
-    local d = fs.getDir(indexPath)
-    if not fs.exists(d) then fs.makeDir(d) end
-    local f = fs.open(indexPath, "w")
-    f.write(textutils.serialize(index))
-    f.close()
-end
 
 local function showHelp()
     local w, h = term.getSize()
@@ -1172,7 +1226,7 @@ local function showHelp()
     os.pullEvent("key")
 end
 
-local function draw()
+local function draw(index)
     local w, h = term.getSize()
     term.setBackgroundColor(colors.gray)
     term.clear()
@@ -1196,10 +1250,8 @@ local function draw()
             term.setCursorPos(1, 1 + i)
             if idx == selected then
                 term.setBackgroundColor(colors.lightBlue)
-                term.setTextColor(colors.white)
             else
                 term.setBackgroundColor(colors.gray)
-                term.setTextColor(colors.white)
             end
             local line = string.format(" [%d] %s", id, alias)
             term.write(line .. string.rep(" ", w - #line))
@@ -1214,26 +1266,21 @@ local function draw()
     return sortedIds
 end
 
-loadIndex()
 while true do
-    local sortedIds = draw()
+    local index = rn.loadIndex()
+    local sortedIds = draw(index)
     local _, k = os.pullEvent("key")
     
-    if k == keys.q then
-        saveIndex()
-        break
-    elseif k == keys.up then
-        selected = selected > 1 and selected - 1 or #sortedIds
-    elseif k == keys.down then
-        selected = selected < #sortedIds and selected + 1 or 1
+    if k == keys.q then break
+    elseif k == keys.up then selected = selected > 1 and selected - 1 or #sortedIds
+    elseif k == keys.down then selected = selected < #sortedIds and selected + 1 or 1
     elseif k == keys.a then
-        local idStr = gui.drawInputPopup("Device ID:")
-        local id = tonumber(idStr)
+        local id = tonumber(gui.drawInputPopup("Device ID:"))
         if id then
             local alias = gui.drawInputPopup("Alias Name:")
             if alias ~= "" then
                 index[id] = alias
-                saveIndex()
+                rn.saveIndex(index)
                 selected = 1
             end
         end
@@ -1242,17 +1289,71 @@ while true do
         local newAlias = gui.drawInputPopup("New Alias ("..id.."):")
         if newAlias ~= "" then
             index[id] = newAlias
-            saveIndex()
+            rn.saveIndex(index)
         end
     elseif k == keys.r and #sortedIds > 0 then
         local id = sortedIds[selected]
         index[id] = nil
-        saveIndex()
+        rn.saveIndex(index)
         selected = 1
     elseif k == keys.h then
         showHelp()
     end
 end
+]],
+
+    -- Rednet Messenger App
+    ["user/scripts/Rednet/messenger.lua"] = [[
+local root = ...
+if root then
+    local paths = { "libs/rom", "libs/local", "scripts/systemMC" }
+    local pStr = ""
+    for _, p in ipairs(paths) do
+        local full = fs.combine(root, p)
+        if not full:match("^/") then full = "/" .. full end
+        pStr = pStr .. full .. "/?.lua;" .. full .. "/?/init.lua;"
+    end
+    package.path = pStr .. package.path
+end
+
+local gui = require("gui")
+local rn = require("rednet_api")
+
+term.setBackgroundColor(colors.gray)
+term.clear()
+term.setCursorPos(1,1)
+term.setBackgroundColor(colors.blue)
+term.clearLine()
+print(" Rednet Messenger")
+
+local id = tonumber(gui.drawInputPopup("Recipient ID:"))
+if id then
+    local msg = gui.drawInputPopup("Message:")
+    if msg ~= "" then
+        rednet.send(id, msg)
+        print("\nSent to " .. id)
+        sleep(1)
+    end
+end
+]],
+
+    -- Rednet Scripter App
+    ["user/scripts/Rednet/scripter.lua"] = [[
+local root = ...
+if root then
+    local paths = { "libs/rom", "libs/local", "scripts/systemMC" }
+    local pStr = ""
+    for _, p in ipairs(paths) do
+        local full = fs.combine(root, p)
+        if not full:match("^/") then full = "/" .. full end
+        pStr = pStr .. full .. "/?.lua;" .. full .. "/?/init.lua;"
+    end
+    package.path = pStr .. package.path
+end
+
+local gui = require("gui")
+print("Rednet Scripter WIP")
+sleep(1.5)
 ]],
 
     -- Disk Usage App
