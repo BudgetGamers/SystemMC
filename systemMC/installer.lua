@@ -1,6 +1,6 @@
 -- [[ SystemMC OS Installer v1.0 ]]
 -- Author: Apollo
-local _VERSION = "0.1.25-b"
+local _VERSION = "0.1.26-b"
 
 local files = {
     -- Root Bootloader
@@ -619,6 +619,21 @@ end
 
 -- Using gui.drawPopup
 
+local function showHelp()
+    local w, h = term.getSize()
+    local win = window.create(term.current(), math.floor(w/2-10), math.floor(h/2-4), 21, 8)
+    win.setBackgroundColor(colors.white)
+    win.setTextColor(colors.black)
+    win.clear()
+    local function writeAt(x, y, txt) win.setCursorPos(x, y) win.write(txt) end
+    writeAt(2, 2, "Trash Hotkeys")
+    writeAt(2, 3, string.rep("-", 17))
+    writeAt(2, 4, "R: Restore Item")
+    writeAt(2, 5, "C: Clear Trash")
+    writeAt(2, 7, "Any key to close")
+    os.pullEvent("key")
+end
+
 local function draw(items)
     local w, h = term.getSize()
     local maxVisible = h - 3
@@ -649,7 +664,7 @@ local function draw(items)
     term.setCursorPos(1, h)
     term.setBackgroundColor(colors.red)
     term.clearLine()
-    term.write(" R:Restore  C:Clear Trash  Q:Quit")
+    term.write(" H:Help  Q:Quit")
 end
 
 while true do
@@ -683,6 +698,8 @@ while true do
             saveIndex({})
             selected = 1
         end
+    elseif k == keys.h then
+        showHelp()
     elseif k == keys.q then break end
 end
 ]],
@@ -1139,6 +1156,22 @@ local function saveIndex()
     f.close()
 end
 
+local function showHelp()
+    local w, h = term.getSize()
+    local win = window.create(term.current(), math.floor(w/2-10), math.floor(h/2-4), 21, 9)
+    win.setBackgroundColor(colors.white)
+    win.setTextColor(colors.black)
+    win.clear()
+    local function writeAt(x, y, txt) win.setCursorPos(x, y) win.write(txt) end
+    writeAt(2, 2, "Rednet Hotkeys")
+    writeAt(2, 3, string.rep("-", 17))
+    writeAt(2, 4, "A: Add Device")
+    writeAt(2, 5, "E: Edit Alias")
+    writeAt(2, 6, "R: Remove Item")
+    writeAt(2, 8, "Any key to close")
+    os.pullEvent("key")
+end
+
 local function draw()
     local w, h = term.getSize()
     term.setBackgroundColor(colors.gray)
@@ -1177,7 +1210,7 @@ local function draw()
     term.setBackgroundColor(colors.blue)
     term.setTextColor(colors.white)
     term.clearLine()
-    term.write(" A:Add  E:Edit  R:Remove  Q:Quit")
+    term.write(" H:Help  Q:Quit")
     return sortedIds
 end
 
@@ -1216,6 +1249,8 @@ while true do
         index[id] = nil
         saveIndex()
         selected = 1
+    elseif k == keys.h then
+        showHelp()
     end
 end
 ]],
