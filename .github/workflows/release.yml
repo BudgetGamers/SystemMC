@@ -15,11 +15,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Extract version from lua
+        id: get_version
+        run: |
+          # Finds the line _VERSION = "1.2.3" and extracts just the 1.2.3
+          VERSION=$(grep '_VERSION =' systemMC/installer.lua | head -n 1 | cut -d '"' -f 2)
+          echo "LUA_VERSION=$VERSION" >> $GITHUB_OUTPUT
+
       - name: Create GitHub Release
-        id: create_release
         uses: softprops/action-gh-release@v2
         with:
-          # Pointing to the file inside the systemMC folder
+          # This sets the Release Title to "SystemMC version 1.2.3"
+          name: SystemMC version ${{ steps.get_version.outputs.LUA_VERSION }}
           files: systemMC/installer.lua
           generate_release_notes: true 
         env:
