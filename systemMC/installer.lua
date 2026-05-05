@@ -1,6 +1,6 @@
 -- [[ SystemMC OS Installer v1.0 ]]
 -- Author: Apollo
-local _VERSION = "0.2.0-b"
+local _VERSION = "0.2.1-b"
 
 local files = {
     -- Root Bootloader
@@ -1318,21 +1318,136 @@ end
 
 local gui = require("gui")
 local rn = require("rednet_api")
+local selected = 1
+local currentID = nil
 
-term.setBackgroundColor(colors.gray)
-term.clear()
-term.setCursorPos(1,1)
-term.setBackgroundColor(colors.blue)
-term.clearLine()
-print(" Rednet Messenger")
+local function getHistoryPath(id)
+    return fs.combine(root, "user/data/rednet/chat_" .. id .. ".log")
+end
 
-local id = tonumber(gui.drawInputPopup("Recipient ID:"))
-if id then
-    local msg = gui.drawInputPopup("Message:")
-    if msg ~= "" then
-        rednet.send(id, msg)
-        print("\nSent to " .. id)
-        sleep(1)
+local function loadHistory(id)
+    local path = getHistoryPath(id)
+    if not fs.exists(path) then return { sent = {}, rec = {} } end
+    local f = fs.open(path, "r")
+    local data = textutils.unserialize(f.readAll()) or { sent = {}, rec = {} }
+    f.close()
+    return data
+end
+
+local function saveHistory(id, history)
+    local f = fs.open(getHistoryPath(id), "w")
+    f.write(textutils.serialize(history))
+    f.close()
+end
+
+local function addMessage(id, msg, type)
+    local hist = loadHistory(id)
+    local list = type == "sent" and hist.sent or hist.rec
+    table.insert(list, { msg = msg, time = os.date("%H:%M") })
+    if #list > 10 then table.remove(list, 1) end
+    saveHistory(id, hist)
+end
+
+local function showChatHelp()
+    local w, h = term.getSize()
+    local win = window.create(term.current(), math.floor(w/2-10), math.floor(h/2-2), 21, 6)
+    win.setBackgroundColor(colors.white)
+    win.setTextColor(colors.black)
+    win.clear()
+    local function writeAt(x, y, txt) win.setCursorPos(x, y) win.write(txt) end
+    writeAt(2, 2, "Chat Hotkeys")
+    writeAt(2, 3, string.rep("-", 17))
+    writeAt(2, 4, "S: Send Message")
+    writeAt(2, 5, "Any key to close")
+    os.pullEvent("key")
+end
+
+local function drawList(index)
+    local w, h = term.getSize()
+    term.setBackgroundColor(colors.gray)
+    term.clear()
+    term.setCursorPos(1, 1)
+    term.setBackgroundColor(colors.blue)
+    term.setTextColor(colors.white)
+    term.clearLine()
+    print(" Messenger: Select Contact")
+    
+    local sortedIds = {}
+    for id in pairs(index) do table.insert(sortedIds, id) end
+    table.sort(sortedIds)
+    
+    for i, id in ipairs(sortedIds) do
+        term.setCursorPos(1, 1 + i)
+        if i == selected then term.setBackgroundColor(colors.lightBlue)
+        else term.setBackgroundColor(colors.gray) end
+        local line = " [" .. id .. "] " .. index[id]
+        term.write(line .. string.rep(" ", w - #line))
+    end
+    term.setCursorPos(1, h)
+    term.setBackgroundColor(colors.blue)
+    term.clearLine()
+    term.write(" Q:Quit")
+    return sortedIds
+end
+
+local function drawChat(id, alias)
+    local w, h = term.getSize()
+    term.setBackgroundColor(colors.gray)
+    term.clear()
+    term.setCursorPos(1, 1)
+    term.setBackgroundColor(colors.blue)
+    term.clearLine()
+    print(" Chat: " .. alias .. " [" .. id .. "]")
+    
+    local hist = loadHistory(id)
+    local all = {}
+    for _, m in ipairs(hist.sent) do table.insert(all, { t = "S", m = m.msg, time = m.time }) end
+    for _, m in ipairs(hist.rec) do table.insert(all, { t = "R", m = m.msg, time = m.time }) end
+    table.sort(all, function(a, b) return a.time < b.time end) -- Very basic sort
+    
+    local startY = 3
+    for i, m in ipairs(all) do
+        if i > h - 5 then break end
+        term.setCursorPos(2, startY + i)
+        if m.t == "S" then term.setTextColor(colors.lightGray) term.write("You: ")
+        else term.setTextColor(colors.white) term.write("Them: ") end
+        term.write(m.m)
+    end
+    
+    term.setCursorPos(1, h)
+    term.setBackgroundColor(colors.blue)
+    term.setTextColor(colors.white)
+    term.clearLine()
+    term.write(" S:Send  H:Help  Q:Back")
+end
+
+while true do
+    local index = rn.loadIndex()
+    if not currentID then
+        local sorted = drawList(index)
+        local _, k = os.pullEvent("key")
+        if k == keys.q then break
+        elseif k == keys.up then selected = selected > 1 and selected - 1 or #sorted
+        elseif k == keys.down then selected = selected < #sorted and selected + 1 or 1
+        elseif k == keys.enter and #sorted > 0 then
+            currentID = sorted[selected]
+        end
+    else
+        drawChat(currentID, index[currentID])
+        local e, k, msg = os.pullEvent()
+        if e == "key" then
+            if k == keys.q then currentID = nil
+            elseif k == keys.h then showChatHelp()
+            elseif k == keys.s then
+                local m = gui.drawInputPopup("Message:")
+                if m ~= "" then
+                    rednet.send(currentID, m)
+                    addMessage(currentID, m, "sent")
+                end
+            end
+        elseif e == "rednet_message" and k == currentID then
+            addMessage(currentID, msg, "rec")
+        end
     end
 end
 ]],
