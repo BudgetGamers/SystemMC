@@ -1,6 +1,6 @@
 -- [[ SystemMC OS Installer v1.0 ]]
 -- Author: Apollo
-local _VERSION = "0.2.1-b"
+local _VERSION = "0.2.2-b"
 
 local files = {
     -- Root Bootloader
@@ -1474,6 +1474,16 @@ sleep(1.5)
     -- Disk Usage App
     ["user/scripts/disk_usage.lua"] = [[
 local root = ...
+if root then
+    local paths = { "libs/rom", "libs/local", "scripts/systemMC" }
+    local pStr = ""
+    for _, p in ipairs(paths) do
+        local full = fs.combine(root, p)
+        if not full:match("^/") then full = "/" .. full end
+        pStr = pStr .. full .. "/?.lua;" .. full .. "/?/init.lua;"
+    end
+    package.path = pStr .. package.path
+end
 local gui = require("gui")
 local scroll = 0
 
