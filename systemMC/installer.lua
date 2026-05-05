@@ -252,13 +252,7 @@ local startMenu = {
         { name = "About", app = "About", path = "scripts/apps/help.lua" },
         { name = "Shutdown", action = "shutdown" }
     }},
-    { name = "Utilities", items = {
-        { name = "Explorer", app = "Explorer", path = "scripts/apps/explorer.lua" },
-        { name = "Trash", app = "Trash", path = "scripts/apps/trash.lua" },
-        { name = "Download", app = "Download", path = "scripts/apps/download.lua" },
-        { name = "Disk Usage", app = "Usage", path = "scripts/apps/disk_usage.lua" }
-    }},
-    { name = "User Apps", items = {} }
+    { name = "Apps", items = {} }
 }
 
 local currentMenu = startMenu
@@ -284,7 +278,7 @@ end
 scanUserApps = function()
     local apps = scanDir("user/scripts", "user/scripts")
     if #apps == 0 then table.insert(apps, { name = "Empty", action = "none" }) end
-    startMenu[3].items = apps
+    startMenu[2].items = apps
 end
 
 loadSettings = function()
@@ -373,7 +367,7 @@ end
 
 
     -- File Explorer App
-    ["scripts/apps/explorer.lua"] = [[
+    ["user/scripts/explorer.lua"] = [[
 local root = ...
 if root then
     local paths = { "libs/rom", "libs/local", "scripts/systemMC" }
@@ -593,7 +587,7 @@ end
 ]],
 
     -- Trash App
-    ["scripts/apps/trash.lua"] = [[
+    ["user/scripts/trash.lua"] = [[
 local root = ...
 if root then
     local paths = { "libs/rom", "libs/local", "scripts/systemMC" }
@@ -695,7 +689,7 @@ end
 ]],
 
     -- Download App
-    ["scripts/apps/download.lua"] = [[
+    ["user/scripts/download.lua"] = [[
 local root = ...
 if root then
     local paths = { "libs/rom", "libs/local", "scripts/systemMC" }
@@ -1111,9 +1105,126 @@ while true do
 end
 ]],
 
-    -- Disk Usage App
-    ["scripts/apps/disk_usage.lua"] = [[
+    -- Rednet Manager App
+    ["user/scripts/rednet_manager.lua"] = [[
 local root = ...
+if root then
+    local paths = { "libs/rom", "libs/local", "scripts/systemMC" }
+    local pStr = ""
+    for _, p in ipairs(paths) do
+        local full = fs.combine(root, p)
+        if not full:match("^/") then full = "/" .. full end
+        pStr = pStr .. full .. "/?.lua;" .. full .. "/?/init.lua;"
+    end
+    package.path = pStr .. package.path
+end
+
+local gui = require("gui")
+local index = {}
+local indexPath = fs.combine(root, "user/data/rednet/rednet.index")
+local selected = 1
+
+local function loadIndex()
+    if fs.exists(indexPath) then
+        local f = fs.open(indexPath, "r")
+        index = textutils.unserialize(f.readAll()) or {}
+        f.close()
+    end
+end
+
+local function saveIndex()
+    local d = fs.getDir(indexPath)
+    if not fs.exists(d) then fs.makeDir(d) end
+    local f = fs.open(indexPath, "w")
+    f.write(textutils.serialize(index))
+    f.close()
+end
+
+local function draw()
+    local w, h = term.getSize()
+    term.setBackgroundColor(colors.gray)
+    term.clear()
+    
+    term.setCursorPos(1, 1)
+    term.setBackgroundColor(colors.blue)
+    term.setTextColor(colors.white)
+    term.clearLine()
+    print(" Rednet Manager")
+    
+    local sortedIds = {}
+    for id in pairs(index) do table.insert(sortedIds, id) end
+    table.sort(sortedIds)
+    
+    local maxVisible = h - 2
+    for i = 1, maxVisible do
+        local idx = i
+        if sortedIds[idx] then
+            local id = sortedIds[idx]
+            local alias = index[id]
+            term.setCursorPos(1, 1 + i)
+            if idx == selected then
+                term.setBackgroundColor(colors.lightBlue)
+                term.setTextColor(colors.white)
+            else
+                term.setBackgroundColor(colors.gray)
+                term.setTextColor(colors.white)
+            end
+            local line = string.format(" [%d] %s", id, alias)
+            term.write(line .. string.rep(" ", w - #line))
+        end
+    end
+    
+    term.setCursorPos(1, h)
+    term.setBackgroundColor(colors.blue)
+    term.setTextColor(colors.white)
+    term.clearLine()
+    term.write(" A:Add  E:Edit  R:Remove  Q:Quit")
+    return sortedIds
+end
+
+loadIndex()
+while true do
+    local sortedIds = draw()
+    local _, k = os.pullEvent("key")
+    
+    if k == keys.q then
+        saveIndex()
+        break
+    elseif k == keys.up then
+        selected = selected > 1 and selected - 1 or #sortedIds
+    elseif k == keys.down then
+        selected = selected < #sortedIds and selected + 1 or 1
+    elseif k == keys.a then
+        local idStr = gui.drawInputPopup("Device ID:")
+        local id = tonumber(idStr)
+        if id then
+            local alias = gui.drawInputPopup("Alias Name:")
+            if alias ~= "" then
+                index[id] = alias
+                saveIndex()
+                selected = 1
+            end
+        end
+    elseif k == keys.e and #sortedIds > 0 then
+        local id = sortedIds[selected]
+        local newAlias = gui.drawInputPopup("New Alias ("..id.."):")
+        if newAlias ~= "" then
+            index[id] = newAlias
+            saveIndex()
+        end
+    elseif k == keys.r and #sortedIds > 0 then
+        local id = sortedIds[selected]
+        index[id] = nil
+        saveIndex()
+        selected = 1
+    end
+end
+]],
+
+    -- Disk Usage App
+    ["user/scripts/disk_usage.lua"] = [[
+local root = ...
+local gui = require("gui")
 local scroll = 0
 
 local function getDrives()
@@ -1212,6 +1323,8 @@ end
     ["libs/local/.keep"] = "",
     ["user/data/.keep"] = "",
     ["TEMP/.keep"] = "",
+    ["user/data/rednet/.keep"] = "",
+    ["user/data/rednet/rednet.index"] = "{}",
     ["scripts/etc/trash/.keep"] = "",
     ["scripts/etc/trash_index"] = "{}",
     ["user/scripts/apps/.keep"] = "",
