@@ -1,6 +1,6 @@
 -- [[ SystemMC OS Installer v1.0 ]]
 -- Author: Apollo
-local _VERSION = "0.2.17b"
+local _VERSION = "0.2.18b"
 
 local files = {
     -- Root Bootloader
@@ -116,7 +116,6 @@ local function drawBox(win, x, y, w, h, title, bg, fg)
     win.write(" " .. title .. string.rep(" ", w - #title - 1))
 end
 
--- ==DESKTOP==
 local function menuBar(w, isMenuOpen, pocketMode)
     term.setCursorPos(1, 1)
     term.setBackgroundColor(colors.blue)
@@ -143,9 +142,7 @@ local function menuBar(w, isMenuOpen, pocketMode)
     term.setTextColor(colors.white)
     term.write(dateStr)
 end
--- ==/DESKTOP==
 
--- ==DESKTOP==
 local function drawStartMenu(x, y, items, selected)
     for i, entry in ipairs(items) do
         term.setCursorPos(x, y + i)
@@ -160,7 +157,6 @@ local function drawStartMenu(x, y, items, selected)
         term.write(" " .. label .. string.rep(" ", 14 - #label) .. " ")
     end
 end
--- ==/DESKTOP==
 
 local function drawInputPopup(title)
     sleep(0.05) -- Anti-ghosting delay
@@ -1966,7 +1962,7 @@ local function install(targetPath, isUpdate, doFormat, headless)
     for path, content in pairs(files) do
         local skip = false
         if headless then
-            local exclude = { "explorer.lua", "download.lua", "trash.lua", "messenger.lua", "scripter.lua", "terminal.lua" }
+            local exclude = { "explorer.lua", "download.lua", "trash.lua", "messenger.lua", "scripter.lua", "terminal.lua", "gui.lua" }
             for _, s in ipairs(exclude) do
                 if path:find(s) then skip = true break end
             end
