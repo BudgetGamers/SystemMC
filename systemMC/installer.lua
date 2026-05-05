@@ -1,6 +1,6 @@
 -- [[ SystemMC OS Installer v1.0 ]]
 -- Author: Apollo
-local _VERSION = "0.2.22b"
+local _VERSION = "0.2.23b"
 
 local files = {
     -- Root Bootloader
@@ -967,6 +967,7 @@ end
     ["scripts/apps/help.lua"] = [[
 local _VERSION = "{{VERSION}}"
 local root = ...
+if not root or root == "" then root = "/" end
 if root then
     local paths = { "libs/rom", "libs/local", "scripts/systemMC" }
     local pStr = ""
@@ -1103,6 +1104,7 @@ end
     ["scripts/apps/settings.lua"] = [[
 local _VERSION = "{{VERSION}}"
 local root = ...
+if not root or root == "" then root = "/" end
 if root then
     local paths = { "libs/rom", "libs/local", "scripts/systemMC" }
     local pStr = ""
@@ -1377,6 +1379,14 @@ end
     -- Rednet Manager App
     ["user/scripts/Rednet/manager.lua"] = [[
 local root, cmd, arg1, arg2 = ...
+if not root or root == "" or root:sub(1,1) == "-" then
+    -- Shift arguments if root is missing (for CLI use)
+    arg2 = arg1
+    arg1 = cmd
+    cmd = root
+    root = "/"
+end
+
 if root then
     local paths = { "libs/rom", "libs/local", "scripts/systemMC" }
     local pStr = ""
@@ -1986,7 +1996,7 @@ local function install(targetPath, isUpdate, doFormat, headless)
     for path, content in pairs(files) do
         local skip = false
         if headless then
-            local exclude = { "explorer.lua", "download.lua", "trash.lua", "messenger.lua", "scripter.lua", "terminal.lua", "gui.lua" }
+            local exclude = { "explorer.lua", "download.lua", "trash.lua", "messenger.lua", "scripter.lua", "terminal.lua" }
             for _, s in ipairs(exclude) do
                 if path:find(s) then skip = true break end
             end
