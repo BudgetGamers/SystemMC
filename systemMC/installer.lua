@@ -293,9 +293,9 @@ if root then
 end
 
 local logger = require("logger")
--- [[DESKTOP]]
+-- ==DESKTOP==
 local gui = require("gui")
--- [[/DESKTOP]]
+-- ==/DESKTOP==
 local rn = require("rednet_api")
 rn.setRoot = function(r) root = r end -- Inject root into rn context if needed
 logger.setRoot(root)
@@ -322,7 +322,7 @@ end
 
 -- Pre-declare functions for mutual visibility
 local scanDir, scanUserApps, loadSettings, drawDesktop, openApp
--- [[DESKTOP]]
+-- ==DESKTOP==
 drawDesktop = function()
     scanUserApps()
     loadSettings()
@@ -340,7 +340,7 @@ drawDesktop = function()
         gui.drawStartMenu(1, 1, currentMenu, selectedIdx)
     end
 end
--- [[/DESKTOP]]
+-- ==/DESKTOP==
 
 local startMenu = {
     { name = "System", items = {
@@ -419,7 +419,7 @@ drawDesktop = function()
     end
 end
 
--- [[DESKTOP]]
+-- ==DESKTOP==
 openApp = function(name, path)
     logger.log("Opening App: " .. name, "OS")
     local appWin = window.create(term.current(), 1, 2, w, h - 1, true)
@@ -429,7 +429,7 @@ openApp = function(name, path)
     menuOpen = false
     drawDesktop()
 end
--- [[/DESKTOP]]
+-- ==/DESKTOP==
 
 while running do
     if not settings.headless then
@@ -1950,7 +1950,7 @@ local function install(targetPath, isUpdate, doFormat, headless)
                 goto continue
             end
             -- Strip desktop parts from files
-            content = content:gsub("%-%-%s%[%[DESKTOP%]%].-%-%-%s%[%[/DESKTOP%]%]", "")
+            content = content:gsub("%-%-%s==DESKTOP==.-%-%-%s==/DESKTOP==", "")
         end
         current = current + 1
         local fullPath = fs.combine(targetPath, path)
@@ -1996,6 +1996,10 @@ local function install(targetPath, isUpdate, doFormat, headless)
         term.setCursorPos(4, 10)
         term.setBackgroundColor(colors.lime)
         term.write(string.rep(" ", progress))
+
+        -- Clean up installer tags for final file
+        finalContent = finalContent:gsub("%-%-%s==DESKTOP==\n", ""):gsub("%-%-%s==/DESKTOP==\n", "")
+        finalContent = finalContent:gsub("%-%-%s==DESKTOP==", ""):gsub("%-%-%s==/DESKTOP==", "")
 
         -- Update Logic: Only write core files
         local dir = fs.getDir(fullPath)
