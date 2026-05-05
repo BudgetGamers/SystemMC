@@ -1,6 +1,6 @@
 -- [[ SystemMC OS Installer v1.0 ]]
 -- Author: Apollo
-local _VERSION = "0.2.11b"
+local _VERSION = "0.2.12b"
 
 local files = {
     -- Root Bootloader
@@ -441,18 +441,26 @@ while running do
                 logger.log("Remote Shell from " .. id .. ": " .. msg, "NET")
                 local output = ""
                 local cur = term.current()
-                local proxy = {}
-                for k,v in pairs(cur) do proxy[k] = v end
+                local proxy = setmetatable({}, {__index = cur})
                 proxy.write = function(s) output = output .. tostring(s); cur.write(s) end
                 proxy.setCursorPos = function(x, y) 
                     local _, cy = cur.getCursorPos()
                     if y > cy then output = output .. "\n" end
                     cur.setCursorPos(x, y)
                 end
+                
+                if msg == "reboot" or msg == "shutdown" then
+                    rednet.send(id, "System " .. msg .. "ing...", "systemMC_remote_response")
+                    sleep(0.2)
+                end
+
                 local old = term.redirect(proxy)
                 shell.run(msg)
                 term.redirect(old)
-                rednet.send(id, output, "systemMC_remote_response")
+                
+                if msg ~= "reboot" and msg ~= "shutdown" then
+                    rednet.send(id, output ~= "" and output or "[Done]", "systemMC_remote_response")
+                end
             end
         end
     end
