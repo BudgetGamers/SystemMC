@@ -1,6 +1,6 @@
 -- [[ SystemMC OS Installer v1.0 ]]
 -- Author: Apollo
-local _VERSION = "0.2.4-b"
+local _VERSION = "0.2.5-b"
 
 local files = {
     -- Root Bootloader
@@ -205,12 +205,13 @@ local function saveIndex(index)
 end
 
 local function getSettings()
-    local settings = { rednetMode = "All", rednetOverrides = {} }
+    local settings = { rednetMode = "Permitted", rednetOverrides = {} }
     if fs.exists(settingsPath) then
         local f = fs.open(settingsPath, "r")
         local content = f.readAll()
         f.close()
-        settings.rednetMode = content:match("rednetMode%s*=%s*([%w_]+)") or "All"
+        settings.rednetMode = content:match("rednetMode%s*=%s*([%w_]+)") or "Permitted"
+        settings.mirrorDisplay = content:match("mirrorDisplay%s*=%s*([%w_]+)") == "true"
         -- Overrides would be more complex to parse here, simplified for now
     end
     return settings
@@ -303,7 +304,18 @@ local running = true
 local menuOpen = false
 local selectedIdx = 1
 local menuStack = {}
-local settings = { pocketMode = false }
+local systemSettings = rn.getSettings()
+
+local function updateMonitorDisplay()
+    local mon = peripheral.find("monitor")
+    if not mon then return end
+    
+    local oldTerm = term.redirect(mon)
+    drawDesktop()
+    term.redirect(oldTerm)
+end
+
+os.startTimer(1) -- Start mirror timer
 
 -- Pre-declare functions for mutual visibility
 local scanDir, scanUserApps, loadSettings, drawDesktop, openApp
@@ -426,6 +438,28 @@ while running do
         end
     elseif e == "rednet_message" then
         rn.register(k)
+        if type(msg) == "string" and msg:sub(1,1) == "/" then
+            local cmd = msg:sub(2)
+            -- Only run if authorized by current settings
+            local currentSettings = rn.getSettings()
+            local authorized = false
+            if currentSettings.rednetMode == "All" then authorized = true
+            elseif currentSettings.rednetMode == "Permitted" then
+                local index = rn.loadIndex()
+                if index[k] then authorized = true end
+            end
+            
+            if authorized then
+                logger.log("Remote Command from " .. k .. ": " .. cmd, "NET")
+                shell.run(cmd)
+            end
+        end
+    elseif e == "timer" then
+        local currentSettings = rn.getSettings()
+        if currentSettings.mirrorDisplay then
+            updateMonitorDisplay()
+        end
+        os.startTimer(1)
     end
 end
 ]],
@@ -985,13 +1019,15 @@ local tabs = {
         { name = "Force Update", key = "force_update", type = "action", value = " " }
     }},
     { name = "Notifications", options = {
-        { name = "Rednet Receive", key = "rednetMode", type = "cycle", values = {"All", "Permitted", "None"}, value = "All" }
+        { name = "Rednet Receive", key = "rednetMode", type = "cycle", values = {"All", "Permitted", "None"}, value = "Permitted" }
     }},
-    { name = "Colors(WIP)", options = {} },
+    { name = "Display", options = {
+        { name = "Mirror Display", key = "mirrorDisplay", type = "toggle", value = false }
+    }},
     { name = "Dev tools(WIP)", options = {} }
 }
 
-local settings = { pocketMode = false }
+local settings = { pocketMode = false, rednetMode = "Permitted", mirrorDisplay = false }
 
 local function loadSettings()
     local path = fs.combine(root, "settings.cfg")
