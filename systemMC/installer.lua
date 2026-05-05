@@ -1,6 +1,6 @@
 -- [[ SystemMC OS Installer v1.0 ]]
 -- Author: Apollo
-local _VERSION = "0.2.7-b"
+local _VERSION = "0.2.8b"
 
 local files = {
     -- Root Bootloader
@@ -385,9 +385,10 @@ end
 
 while running do
     drawDesktop()
-    local e, k = os.pullEvent()
+    local e, p1, p2, p3 = os.pullEvent()
     
     if e == "key" then
+        local k = p1
         if not menuOpen then
             if k == keys.enter or k == keys.space then
                 menuOpen = true
@@ -425,20 +426,20 @@ while running do
             end
         end
     elseif e == "rednet_message" then
-        rn.register(k)
+        local id, msg = p1, p2
+        rn.register(id)
         if type(msg) == "string" and msg:sub(1,1) == "/" then
             local cmd = msg:sub(2)
-            -- Only run if authorized by current settings
             local settings = rn.getSettings()
             local authorized = false
             if settings.rednetMode == "All" then authorized = true
             elseif settings.rednetMode == "Permitted" then
                 local index = rn.loadIndex()
-                if index[k] then authorized = true end
+                if index[id] then authorized = true end
             end
             
             if authorized then
-                logger.log("Remote Command from " .. k .. ": " .. cmd, "NET")
+                logger.log("Remote Command from " .. id .. ": " .. cmd, "NET")
                 shell.run(cmd)
             end
         end
