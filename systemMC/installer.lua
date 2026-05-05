@@ -1,6 +1,6 @@
 -- [[ SystemMC OS Installer v1.0 ]]
 -- Author: Apollo
-local _VERSION = "0.2.15b"
+local _VERSION = "0.2.16b"
 
 local files = {
     -- Root Bootloader
@@ -22,12 +22,25 @@ end
 
 local function log(msg)
     local f = fs.open(recentLog, "a")
-    f.writeLine("[" .. os.date() .. "] [BOOT] " .. msg)
-    f.close()
+    if f then
+        f.writeLine("[" .. os.date() .. "] [BOOT] " .. msg)
+        f.close()
+    end
 end
 
 log("SystemMC Boot Initialized")
 log("Root detected: " .. root)
+
+-- Load Headless setting
+local sPath = fs.combine(root, "settings.cfg")
+local isHeadless = false
+if fs.exists(sPath) then
+    local f = fs.open(sPath, "r")
+    if f then
+        isHeadless = f.readAll():match("headless%s*=%s*true")
+        f.close()
+    end
+end
 
 local systemPaths = {
     "libs/rom", "libs/local", "scripts/systemMC", 
@@ -39,7 +52,7 @@ for _, p in ipairs(systemPaths) do
     local full = fs.combine(root, p)
     if not full:match("^/") then full = "/" .. full end
     
-    shell.setPath(shell.path() .. ":" .. full) -- Append to shell path
+    shell.setPath(shell.path() .. ":" .. full)
     table.insert(newPaths, full .. "/?.lua")
     table.insert(newPaths, full .. "/?/init.lua")
     log("Registered Path: " .. full)
@@ -62,17 +75,30 @@ if fs.exists(tempDir) and fs.isDir(tempDir) then
     log("TEMP directory cleared")
 end
 
-term.clear()
-term.setCursorPos(1,1)
-print("SystemMC OS Loading...")
-sleep(0.5)
+if not isHeadless then
+    term.clear()
+    term.setCursorPos(1,1)
+    print("SystemMC OS Loading...")
+    sleep(0.5)
+end
 
 if fs.exists(kernelPath) then
     log("Executing Kernel: " .. kernelPath)
-    shell.run(kernelPath, root)
+    if isHeadless then
+        if shell.openTab then
+            shell.openTab(kernelPath, root)
+        elseif fs.exists("/rom/programs/advanced/bg.lua") then
+            shell.run("bg", kernelPath, root)
+        else
+            -- Fallback for non-advanced computers
+            shell.run(kernelPath, root)
+        end
+    else
+        shell.run(kernelPath, root)
+    end
 else
     log("CRITICAL ERROR: Kernel not found at " .. kernelPath)
-    print("Error: Kernel not found!")
+    if not isHeadless then print("Error: Kernel not found!") end
 end
 ]],
 
