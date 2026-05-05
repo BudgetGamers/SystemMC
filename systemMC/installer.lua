@@ -1,6 +1,6 @@
 -- [[ SystemMC OS Installer v1.0 ]]
 -- Author: Apollo
-local _VERSION = "0.2.10b"
+local _VERSION = "0.2.11b"
 
 local files = {
     -- Root Bootloader
@@ -439,7 +439,20 @@ while running do
             
             if authorized then
                 logger.log("Remote Shell from " .. id .. ": " .. msg, "NET")
+                local output = ""
+                local cur = term.current()
+                local proxy = {}
+                for k,v in pairs(cur) do proxy[k] = v end
+                proxy.write = function(s) output = output .. tostring(s); cur.write(s) end
+                proxy.setCursorPos = function(x, y) 
+                    local _, cy = cur.getCursorPos()
+                    if y > cy then output = output .. "\n" end
+                    cur.setCursorPos(x, y)
+                end
+                local old = term.redirect(proxy)
                 shell.run(msg)
+                term.redirect(old)
+                rednet.send(id, output, "systemMC_remote_response")
             end
         end
     end
@@ -1543,6 +1556,14 @@ while true do
             if cmd == "exit" then break end
             if cmd ~= "" then
                 rednet.send(targetID, cmd, "systemMC_remote_shell")
+                local _, resp = rednet.receive("systemMC_remote_response", 5)
+                if resp then
+                    term.setTextColor(colors.lightGray)
+                    print(resp)
+                else
+                    term.setTextColor(colors.red)
+                    print("No response from target.")
+                end
             end
         end
     end
