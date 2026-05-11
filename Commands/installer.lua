@@ -1,5 +1,5 @@
 -- Commands Library Installer
-local _VERSION = "1.0.0"
+local _VERSION = "1.0.1"
 local repoBaseUrl = "https://raw.githubusercontent.com/BudgetGamers/SystemMC/main/Commands/"
 local installDir = "/Commands"
 
