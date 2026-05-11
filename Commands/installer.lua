@@ -3,7 +3,7 @@ local repoBaseUrl = "https://raw.githubusercontent.com/BudgetGamers/SystemMC/mai
 local installDir = "/Commands"
 
 local files = {
-    "setup.lua",
+    "startup.lua",
     "netopen.lua",
     "netping.lua",
     "netsend.lua",
@@ -55,4 +55,4 @@ for _, file in ipairs(files) do
     end
 end
 
-print("Installation complete! Run '/Commands/setup' to add to path.")
+print("Installation complete! Run '/Commands/startup' to add to path or call it from your main startup file.")
