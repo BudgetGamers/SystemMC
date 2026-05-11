@@ -1,0 +1,28 @@
+name: Commands Library Release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'Commands/**'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create or Update Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Commands Library
+          tag_name: Commands
+          files: Commands/*
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

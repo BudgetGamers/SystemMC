@@ -1,6 +1,6 @@
 -- [[ SystemMC OS Installer v1.0 ]]
 -- Author: Apollo
-local _VERSION = "0.2.23b"
+local _VERSION = "0.2.24b"
 
 local files = {
     -- Root Bootloader
