@@ -17,11 +17,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Extract version from lua
+        id: get_version
+        run: |
+          VERSION=$(grep '_VERSION =' Commands/installer.lua | head -n 1 | cut -d '"' -f 2)
+          echo "LUA_VERSION=$VERSION" >> $GITHUB_OUTPUT
+
       - name: Create or Update Release
         uses: softprops/action-gh-release@v2
         with:
-          name: Commands Library
-          tag_name: Commands
+          name: Commands Library version ${{ steps.get_version.outputs.LUA_VERSION }}
+          tag_name: Commands-${{ steps.get_version.outputs.LUA_VERSION }}
           files: Commands/*
           generate_release_notes: true
         env:
