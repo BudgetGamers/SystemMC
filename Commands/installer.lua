@@ -1,5 +1,5 @@
 -- Commands Library Installer
-local _VERSION = "1.0.1"
+local _VERSION = "1.0.2"
 local repoBaseUrl = "https://raw.githubusercontent.com/BudgetGamers/SystemMC/main/Commands/"
 local installDir = "/Commands"
 
@@ -45,14 +45,19 @@ for _, file in ipairs(files) do
         
         local minifiedContent = minify(content)
         
-        local filePath = fs.combine(installDir, file)
+        local filePath
+        if file == "startup.lua" then
+            filePath = "startup.lua"
+        else
+            filePath = fs.combine(installDir, file)
+        end
         local f = fs.open(filePath, "w")
         f.write(minifiedContent)
         f.close()
-        print("  -> Saved and minified as " .. file)
+        print("  -> Saved and minified as " .. filePath)
     else
         printError("  -> Failed to download " .. file)
     end
 end
 
-print("Installation complete! Run '/Commands/startup.lua' to add aliases or call it from your main startup file.")
+print("Installation complete! Please reboot the device to apply the command aliases.")
