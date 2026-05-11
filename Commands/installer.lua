@@ -44,11 +44,12 @@ for _, file in ipairs(files) do
         
         local minifiedContent = minify(content)
         
-        local filePath = fs.combine(installDir, file)
+        local outFileName = string.gsub(file, "%.lua$", "")
+        local filePath = fs.combine(installDir, outFileName)
         local f = fs.open(filePath, "w")
         f.write(minifiedContent)
         f.close()
-        print("  -> Saved and minified " .. file)
+        print("  -> Saved and minified as " .. outFileName)
     else
         printError("  -> Failed to download " .. file)
     end
