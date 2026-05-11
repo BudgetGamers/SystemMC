@@ -45,15 +45,14 @@ for _, file in ipairs(files) do
         
         local minifiedContent = minify(content)
         
-        local outFileName = string.gsub(file, "%.lua$", "")
-        local filePath = fs.combine(installDir, outFileName)
+        local filePath = fs.combine(installDir, file)
         local f = fs.open(filePath, "w")
         f.write(minifiedContent)
         f.close()
-        print("  -> Saved and minified as " .. outFileName)
+        print("  -> Saved and minified as " .. file)
     else
         printError("  -> Failed to download " .. file)
     end
 end
 
-print("Installation complete! Run '/Commands/startup' to add to path or call it from your main startup file.")
+print("Installation complete! Run '/Commands/startup.lua' to add aliases or call it from your main startup file.")

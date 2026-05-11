@@ -1,15 +1,10 @@
-local currentPath = shell.path()
 local commandsDir = "/Commands"
-local commandsDirNoSlash = "Commands"
 
--- Check if already in path
-for path in string.gmatch(currentPath, "[^:]+") do
-    if path == commandsDir or path == commandsDirNoSlash then
-        print("Commands directory is already in the path.")
-        return
-    end
-end
+shell.setAlias("netopen", commandsDir .. "/netopen.lua")
+shell.setAlias("netping", commandsDir .. "/netping.lua")
+shell.setAlias("netsend", commandsDir .. "/netsend.lua")
+shell.setAlias("netlisten", commandsDir .. "/netlisten.lua")
+shell.setAlias("netbroadcast", commandsDir .. "/netbroadcast.lua")
+shell.setAlias("sysinfo", commandsDir .. "/sysinfo.lua")
 
-shell.setPath(currentPath .. ":" .. commandsDir)
-print("Added " .. commandsDir .. " to shell path.")
-print("You can now use commands like 'sysinfo', 'netopen', etc. from anywhere.")
+print("Command aliases from " .. commandsDir .. " have been set.")
